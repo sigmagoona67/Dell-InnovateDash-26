@@ -6,37 +6,39 @@ export const MOODS = [
   { id: 'overwhelmed', emoji: '😢', label: 'Overwhelmed' },
 ]
 
+export const PERSONALITY_SCALES = [
+  { id: 'social', left: 'Introverted', right: 'Outgoing' },
+  { id: 'energy', left: 'Calm', right: 'Energetic' },
+  { id: 'thinking', left: 'Practical', right: 'Creative' },
+  { id: 'expression', left: 'Reserved', right: 'Expressive' },
+  { id: 'independence', left: 'Independent', right: 'Team-oriented' },
+  { id: 'outlook', left: 'Realistic', right: 'Optimistic' },
+]
+
 export const ONBOARDING_SECTIONS = [
   {
     id: 'interests',
     title: 'Interests',
-    subtitle: 'What do you enjoy doing in your free time?',
-    type: 'multiple',
-    options: ['Music', 'Gaming', 'Drawing', 'Sports', 'Anime', 'K-pop', 'Reading', 'Coding', 'Pets', 'Others'],
+    subtitle: 'Tell us what you enjoy — we will suggest options you can pick from.',
+    type: 'ai_tags',
+    aiCategory: 'interests',
+    placeholder: 'e.g. basketball, anime, drawing, K-pop…',
+    hint: 'Type a few things you like, then tap Show options. Select any that fit, or type more for new suggestions.',
   },
   {
     id: 'personality',
     title: 'Personality',
-    subtitle: 'Which words describe you best?',
-    type: 'multiple',
-    options: ['Introverted', 'Outgoing', 'Sensitive', 'Calm', 'Funny', 'Creative', 'Emotional', 'Independent', 'Optimistic', 'Others'],
+    subtitle: 'Where do you fall on each spectrum?',
+    type: 'scales',
   },
   {
     id: 'communication',
     title: 'Preferred Communication Style',
-    subtitle: 'What kind of support feels most helpful to you?',
-    type: 'multiple',
-    options: [
-      'Patient',
-      'Gentle',
-      'Good listener',
-      'Positive',
-      'Funny',
-      'Gives practical advice',
-      'Gives emotional support',
-      'Similar hobbies',
-      'Others',
-    ],
+    subtitle: 'Describe how you like to be supported — we will suggest styles that might fit.',
+    type: 'ai_tags',
+    aiCategory: 'communication',
+    placeholder: 'e.g. patient listener, gentle advice, someone funny…',
+    hint: 'Describe what kind of support feels helpful. Select suggested options or type more to refine.',
   },
   {
     id: 'living',

@@ -3,6 +3,8 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { useYouthSession } from '../../context/YouthSessionContext'
 import { ONBOARDING_SECTIONS } from '../../lib/youthMockData'
 import { completeOnboarding } from '../../services/questionnaireService'
+import AiTagPicker from '../../components/youth/AiTagPicker'
+import PersonalityScales from '../../components/youth/PersonalityScales'
 
 function OptionChip({ label, selected, onToggle, type = 'multiple' }) {
   return (
@@ -47,6 +49,10 @@ export default function YouthOnboarding() {
     [step],
   )
 
+  function setSectionAnswer(value) {
+    setAnswers({ ...answers, [section.id]: value })
+  }
+
   function toggleMultiple(option) {
     const current = answers[section.id] || []
     const next = current.includes(option)
@@ -88,6 +94,62 @@ export default function YouthOnboarding() {
     if (!isFirst) setStep((prev) => prev - 1)
   }
 
+  function renderSectionInput() {
+    if (section.type === 'textarea') {
+      return (
+        <textarea
+          value={answers[section.id] || ''}
+          onChange={(event) => setNotes(event.target.value)}
+          rows={8}
+          placeholder="Share anything that would help us support you better..."
+          className="w-full flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-teal-400"
+        />
+      )
+    }
+
+    if (section.type === 'ai_tags') {
+      return (
+        <AiTagPicker
+          key={section.id}
+          category={section.aiCategory}
+          placeholder={section.placeholder}
+          hint={section.hint}
+          value={answers[section.id] || []}
+          onChange={setSectionAnswer}
+        />
+      )
+    }
+
+    if (section.type === 'scales') {
+      return (
+        <PersonalityScales
+          value={answers[section.id] || []}
+          onChange={setSectionAnswer}
+        />
+      )
+    }
+
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        {section.options.map((option) => (
+          <OptionChip
+            key={option}
+            label={option}
+            type={section.type}
+            selected={
+              section.type === 'single'
+                ? answers[section.id] === option
+                : (answers[section.id] || []).includes(option)
+            }
+            onToggle={() =>
+              section.type === 'single' ? selectSingle(option) : toggleMultiple(option)
+            }
+          />
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden bg-white">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
@@ -123,33 +185,7 @@ export default function YouthOnboarding() {
           </h1>
           <p className="mb-8 text-slate-600">{section.subtitle}</p>
 
-          {section.type === 'textarea' ? (
-            <textarea
-              value={answers[section.id] || ''}
-              onChange={(event) => setNotes(event.target.value)}
-              rows={8}
-              placeholder="Share anything that would help us support you better..."
-              className="w-full flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-teal-400"
-            />
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {section.options.map((option) => (
-                <OptionChip
-                  key={option}
-                  label={option}
-                  type={section.type}
-                  selected={
-                    section.type === 'single'
-                      ? answers[section.id] === option
-                      : (answers[section.id] || []).includes(option)
-                  }
-                  onToggle={() =>
-                    section.type === 'single' ? selectSingle(option) : toggleMultiple(option)
-                  }
-                />
-              ))}
-            </div>
-          )}
+          {renderSectionInput()}
 
           <div className="mt-10 flex items-center justify-end gap-3">
             {!isFirst && (
