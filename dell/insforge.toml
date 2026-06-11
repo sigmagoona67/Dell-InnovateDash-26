@@ -1,0 +1,19 @@
+# CareBridge AI demo auth settings — disable email verification for hackathon usability.
+# Apply with: npx @insforge/cli config apply --auto-approve
+
+[auth]
+allowed_redirect_urls = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+]
+require_email_verification = false
+verify_email_method = "link"
+reset_password_method = "code"
+disable_signup = false
+
+[auth.password]
+min_length = 8
+require_number = false
+require_lowercase = true
+require_uppercase = false
+require_special_char = false
