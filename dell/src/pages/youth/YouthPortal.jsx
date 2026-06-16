@@ -56,7 +56,11 @@ export default function YouthPortal() {
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {activeSection === 'companion' && (
-            <AICompanion youthId={context.youth.id} youthName={context.displayName} />
+            <AICompanion
+              youthId={context.youth.id}
+              youthName={context.displayName}
+              staffName={workerView.hasAssignedWorker ? workerView.name : ''}
+            />
           )}
           {activeSection === 'history' && <ChatHistoryPanel youthId={context.youth.id} />}
           {activeSection === 'worker' && <AssignedWorkerPanel workerView={workerView} />}

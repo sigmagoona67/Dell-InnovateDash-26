@@ -8,17 +8,27 @@ export function todayDateString() {
   return new Date().toISOString().slice(0, 10)
 }
 
-export async function getOrCreateTodaySession(youthId) {
-  const sessionDate = todayDateString()
-
-  const { data: existing, error: existingError } = await db()
+async function fetchSessionByDate(youthId, sessionDate) {
+  const { data, error } = await db()
     .from('ai_chat_sessions')
     .select('*')
     .eq('youth_id', youthId)
     .eq('session_date', sessionDate)
     .maybeSingle()
 
-  if (existingError) throw existingError
+  if (error) throw error
+  return data
+}
+
+function isDuplicateSessionError(error) {
+  const message = String(error?.message || '')
+  return error?.code === '23505' || /duplicate key|unique constraint/i.test(message)
+}
+
+export async function getOrCreateTodaySession(youthId) {
+  const sessionDate = todayDateString()
+
+  const existing = await fetchSessionByDate(youthId, sessionDate)
   if (existing) return existing
 
   const { data, error } = await db()
@@ -34,7 +44,13 @@ export async function getOrCreateTodaySession(youthId) {
     .select('*')
     .single()
 
-  if (error) throw error
+  if (error) {
+    if (isDuplicateSessionError(error)) {
+      const retry = await fetchSessionByDate(youthId, sessionDate)
+      if (retry) return retry
+    }
+    throw error
+  }
   return data
 }
 
@@ -85,5 +101,7 @@ export function mapMessagesForUi(rows) {
     .map((row) => ({
       role: row.sender === 'youth' ? 'user' : 'ai',
       text: row.message,
+      created_at: row.created_at,
+      session_id: row.session_id,
     }))
 }

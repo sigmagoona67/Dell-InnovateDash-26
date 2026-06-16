@@ -1,32 +1,62 @@
-import { requireInsforge } from '../lib/insforgeClient'
+import { enrichOfflineSummary, finalizeOfflineSessionSummary, synthesizeOfflineSummary } from '../lib/offlineSummaryParser'
+import { extractYouthSpeech } from '../lib/sessionCaseNote'
+import { requireInsforge, requireInsforgeLongRunning } from '../lib/insforgeClient'
+
+function clipTranscript(transcript) {
+  const text = String(transcript || '').trim()
+  if (text.length <= 12000) return text
+  return `${text.slice(0, 12000)}\n\n[Transcript truncated for AI processing]`
+}
 
 export async function generateOfflineSummary(payload) {
+  const clipped = clipTranscript(payload.transcript)
+  const youthSpeech = extractYouthSpeech(clipped).join('\n')
+
+  try {
+    const { data, error } = await requireInsforgeLongRunning().functions.invoke('staff-ai-assist', {
+      body: {
+        action: 'generateOfflineSummary',
+        ...payload,
+        transcript: clipped,
+        youthSpeech,
+      },
+    })
+
+    if (error) throw error
+    if (data?.error) throw new Error(data.error)
+
+    return finalizeOfflineSessionSummary(
+      enrichOfflineSummary(data, clipped, {
+        youthName: payload.youthName,
+        previousInsights: payload.previousInsights,
+        questionnaire: payload.questionnaire,
+      }),
+    )
+  } catch {
+    return buildMockOfflineSummary(
+      clipped,
+      payload.previousInsights,
+      payload.youthName,
+      payload.questionnaire,
+    )
+  }
+}
+
+export function buildMockOfflineSummary(transcript, previousInsights = {}, youthName, questionnaire = null) {
+  return synthesizeOfflineSummary(transcript, { youthName, previousInsights, questionnaire })
+}
+
+export async function regenerateYouthProfileInsights(youthId, payload = {}) {
   const { data, error } = await requireInsforge().functions.invoke('staff-ai-assist', {
-    body: { action: 'generateOfflineSummary', ...payload },
+    body: {
+      action: 'regenerateYouthInsights',
+      youthId,
+      summary: payload.summary || '',
+      riskLevel: payload.riskLevel || 'low',
+    },
   })
 
   if (error) throw error
   if (data?.error) throw new Error(data.error)
   return data
-}
-
-export function buildMockOfflineSummary(transcript, previousInsights = {}) {
-  const snippet = transcript.slice(0, 120)
-  return {
-    ai_summary: `Counselling session summary: ${snippet}${transcript.length > 120 ? '…' : ''}`,
-    emotion_analysis: ['Reflective', 'Anxious', 'Hopeful'],
-    categories: ['Emotional support', 'Coping strategies'],
-    risk_level: previousInsights.risk_level || 'medium',
-    main_risk: previousInsights.main_risk?.length
-      ? previousInsights.main_risk
-      : ['Ongoing stress', 'Sleep disruption'],
-    best_communication_approach: previousInsights.best_communication_approach?.length
-      ? previousInsights.best_communication_approach
-      : ['Use gentle questions', 'Validate feelings before problem-solving'],
-    latest_change: 'Updated after offline counselling transcript review',
-    suggested_follow_up: 'Check in within 24–48 hours and monitor sleep patterns.',
-    current_state: previousInsights.current_state?.length
-      ? previousInsights.current_state
-      : ['Processing recent stress', 'Open to support'],
-  }
 }

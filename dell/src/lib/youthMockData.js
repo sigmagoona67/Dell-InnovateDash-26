@@ -90,12 +90,6 @@ export const ONBOARDING_SECTIONS = [
       'Others',
     ],
   },
-  {
-    id: 'notes',
-    title: 'Additional Notes',
-    subtitle: 'Is there anything else you would like your future youth worker to know?',
-    type: 'textarea',
-  },
 ]
 
 export const GREETING_TEMPLATES = [

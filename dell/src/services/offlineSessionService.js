@@ -4,6 +4,20 @@ function db() {
   return requireInsforge().database
 }
 
+export async function findSessionForDate(youthId, sessionDate) {
+  const { data, error } = await db()
+    .from('offline_counselling_sessions')
+    .select('*')
+    .eq('youth_id', youthId)
+    .eq('session_date', sessionDate)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
 export async function createDraftSession({ youthId, staffId, transcript, sessionDate }) {
   const { data, error } = await db()
     .from('offline_counselling_sessions')

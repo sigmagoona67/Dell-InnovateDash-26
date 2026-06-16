@@ -1,4 +1,5 @@
 import { requireInsforge } from '../lib/insforgeClient'
+import { syncProfileInsights } from './aiService'
 
 function db() {
   return requireInsforge().database
@@ -72,24 +73,32 @@ export async function saveQuestionnaire(youthId, answers) {
 
   if (existingError) throw existingError
 
+  let data
   if (existing) {
-    const { data, error } = await db()
+    const result = await db()
       .from('youth_questionnaire')
       .update(payload)
       .eq('youth_id', youthId)
       .select('*')
       .single()
-    if (error) throw error
-    return data
+    if (result.error) throw result.error
+    data = result.data
+  } else {
+    const result = await db()
+      .from('youth_questionnaire')
+      .insert([{ youth_id: youthId, ...payload }])
+      .select('*')
+      .single()
+    if (result.error) throw result.error
+    data = result.data
   }
 
-  const { data, error } = await db()
-    .from('youth_questionnaire')
-    .insert([{ youth_id: youthId, ...payload }])
-    .select('*')
-    .single()
+  try {
+    await syncProfileInsights({ summary: 'Questionnaire updated.', riskLevel: 'low' })
+  } catch (regenError) {
+    console.warn('[questionnaire] At a Glance regen after save failed:', regenError?.message || regenError)
+  }
 
-  if (error) throw error
   return data
 }
 

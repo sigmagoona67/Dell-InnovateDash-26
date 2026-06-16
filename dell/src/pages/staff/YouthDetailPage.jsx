@@ -6,7 +6,9 @@ import OfflineSessionTab from '../../components/staff/OfflineSessionTab'
 import StaffSidebar from '../../components/staff/StaffSidebar'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
 import { useStaffSession } from '../../context/StaffSessionContext'
-import { assignYouthToMe, getYouthDetail } from '../../services/staffService'
+import { resolveCurrentConcern, resolveCasePreview } from '../../lib/dashboardCard'
+import { resolveYouthRiskLevel } from '../../lib/riskResolver'
+import { assignYouthToMe, canStaffEditYouth, getYouthDetail } from '../../services/staffService'
 
 export default function YouthDetailPage() {
   const { youthId } = useParams()
@@ -17,6 +19,7 @@ export default function YouthDetailPage() {
   const [loading, setLoading] = useState(true)
   const [assigning, setAssigning] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [dataVersion, setDataVersion] = useState(0)
 
   const loadDetail = useCallback(async () => {
     setLoading(true)
@@ -35,11 +38,22 @@ export default function YouthDetailPage() {
     loadDetail()
   }, [loadDetail])
 
+  useEffect(() => {
+    function handleFocus() {
+      loadDetail()
+      setDataVersion((value) => value + 1)
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [loadDetail])
+
   async function handleAssign() {
     setAssigning(true)
     try {
       await assignYouthToMe(youthId)
       await loadDetail()
+      setDataVersion((v) => v + 1)
     } catch (error) {
       setErrorMessage(error.message || 'Unable to assign youth.')
     } finally {
@@ -49,10 +63,13 @@ export default function YouthDetailPage() {
 
   const staffName = context?.staffProfile?.display_name || 'Staff'
 
+  const staffProfileId = context?.staffProfile?.id
+  const canManageCase = detail ? canStaffEditYouth(detail.youth, staffProfileId) : false
+
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-white px-6">
-        <p className="text-slate-600">Loading youth profile…</p>
+        <p className="text-slate-600">Loading case details…</p>
       </div>
     )
   }
@@ -83,7 +100,7 @@ export default function YouthDetailPage() {
       <div className="relative z-10 flex flex-1 flex-col">
         <div className="flex gap-2 overflow-x-auto border-b border-slate-100 bg-white px-4 py-2 lg:hidden">
           {[
-            { id: 'characteristics', label: '🧩 Profile' },
+            { id: 'characteristics', label: '🧩 Youth Overview' },
             { id: 'timeline', label: '📅 Timeline' },
             { id: 'offline', label: '📝 Offline' },
           ].map((item) => (
@@ -107,9 +124,20 @@ export default function YouthDetailPage() {
                 youth={{
                   id: youthId,
                   name: detail.name,
-                  riskLevel: detail.insights?.risk_level || 'low',
-                  currentChallenges: detail.questionnaire?.current_challenges,
-                  aiSummary: detail.insights?.latest_change || 'Preview mode — assign to manage this case.',
+                  riskLevel: resolveYouthRiskLevel({
+                    insights: detail.insights,
+                    aiSessions: detail.aiSessions,
+                    offlineSessions: (detail.offlineSessions || []).filter((s) => s.status === 'approved'),
+                  }),
+                  currentConcern: resolveCurrentConcern({
+                    insights: detail.insights,
+                    questionnaire: detail.questionnaire,
+                  }),
+                  casePreview: resolveCasePreview({
+                    insights: detail.insights,
+                    sessions: detail.aiSessions,
+                    youthName: detail.name,
+                  }),
                 }}
                 onAssign={handleAssign}
                 assigning={assigning}
@@ -124,9 +152,31 @@ export default function YouthDetailPage() {
             </p>
           )}
 
-          {activeTab === 'characteristics' && <CharacteristicsTab detail={detail} />}
-          {activeTab === 'timeline' && <CaseTimelineTab detail={detail} />}
-          {activeTab === 'offline' && <OfflineSessionTab detail={detail} onUpdated={loadDetail} />}
+          {activeTab === 'characteristics' && (
+            <CharacteristicsTab
+              detail={detail}
+              refreshKey={dataVersion}
+              staffProfileId={staffProfileId}
+              canEdit={canManageCase}
+            />
+          )}
+          {activeTab === 'timeline' && (
+            <CaseTimelineTab
+              detail={detail}
+              refreshKey={dataVersion}
+              staffProfileId={staffProfileId}
+              canEdit={canManageCase}
+            />
+          )}
+          {activeTab === 'offline' && (
+            <OfflineSessionTab
+              detail={detail}
+              onUpdated={() => {
+                loadDetail()
+                setDataVersion((v) => v + 1)
+              }}
+            />
+          )}
         </main>
       </div>
     </div>

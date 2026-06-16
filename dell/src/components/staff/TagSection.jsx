@@ -1,7 +1,8 @@
-export function TagSection({ title, items, footer }) {
+export function TagSection({ title, items, footer, hint }) {
   return (
-    <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-      <h3 className="text-base font-bold text-slate-800">{title}</h3>
+    <section className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+      <h3 className="text-sm font-bold text-slate-800">{title}</h3>
+      {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         {(items || []).length > 0 ? (
           items.map((item) => (
@@ -13,10 +14,10 @@ export function TagSection({ title, items, footer }) {
             </span>
           ))
         ) : (
-          <span className="text-sm text-slate-400">Not provided yet</span>
+          <span className="text-sm text-slate-400">Not enough information yet</span>
         )}
       </div>
-      {footer && <p className="mt-4 text-xs text-slate-400">{footer}</p>}
+      {footer && <p className="mt-3 text-xs text-slate-400">{footer}</p>}
     </section>
   )
 }

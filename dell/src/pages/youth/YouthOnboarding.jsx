@@ -59,10 +59,6 @@ export default function YouthOnboarding() {
     setAnswers({ ...answers, [section.id]: option })
   }
 
-  function setNotes(value) {
-    setAnswers({ ...answers, [section.id]: value })
-  }
-
   async function handleNext() {
     if (!isLast) {
       setStep((prev) => prev + 1)
@@ -123,33 +119,23 @@ export default function YouthOnboarding() {
           </h1>
           <p className="mb-8 text-slate-600">{section.subtitle}</p>
 
-          {section.type === 'textarea' ? (
-            <textarea
-              value={answers[section.id] || ''}
-              onChange={(event) => setNotes(event.target.value)}
-              rows={8}
-              placeholder="Share anything that would help us support you better..."
-              className="w-full flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-teal-400"
-            />
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {section.options.map((option) => (
-                <OptionChip
-                  key={option}
-                  label={option}
-                  type={section.type}
-                  selected={
-                    section.type === 'single'
-                      ? answers[section.id] === option
-                      : (answers[section.id] || []).includes(option)
-                  }
-                  onToggle={() =>
-                    section.type === 'single' ? selectSingle(option) : toggleMultiple(option)
-                  }
-                />
-              ))}
-            </div>
-          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {section.options.map((option) => (
+              <OptionChip
+                key={option}
+                label={option}
+                type={section.type}
+                selected={
+                  section.type === 'single'
+                    ? answers[section.id] === option
+                    : (answers[section.id] || []).includes(option)
+                }
+                onToggle={() =>
+                  section.type === 'single' ? selectSingle(option) : toggleMultiple(option)
+                }
+              />
+            ))}
+          </div>
 
           <div className="mt-10 flex items-center justify-end gap-3">
             {!isFirst && (

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import MonthCalendar from './MonthCalendar'
+import { resolveAiSessionSummary } from '../../lib/sessionSummary'
 import {
   getSessionByDate,
   getSessionMessages,
@@ -39,6 +40,15 @@ export default function ChatHistoryPanel({ youthId }) {
     () => sessions.map((session) => Number(session.session_date.split('-')[2])),
     [sessions],
   )
+
+  const aiSummaryText = useMemo(() => {
+    if (!selectedSession) return ''
+    const rawMessages = messages.map((m) => ({
+      sender: m.role === 'user' ? 'youth' : 'ai',
+      message: m.text,
+    }))
+    return resolveAiSessionSummary(selectedSession, rawMessages)
+  }, [selectedSession, messages])
 
   useEffect(() => {
     async function loadMonth() {
@@ -168,7 +178,7 @@ export default function ChatHistoryPanel({ youthId }) {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">AI Summary</p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                    {selectedSession.ai_summary || 'No summary available yet.'}
+                    {aiSummaryText || 'No summary available yet.'}
                   </p>
                 </div>
               </div>

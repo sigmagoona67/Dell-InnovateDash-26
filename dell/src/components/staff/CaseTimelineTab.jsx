@@ -1,14 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { requireInsforge } from '../../lib/insforgeClient'
 import { getSessionMessages, mapMessagesForUi } from '../../services/chatService'
+import { loadYouthInsights } from '../../services/insightsFallbackService'
+import { canStaffEditYouth } from '../../services/staffService'
 import CaseTimelineCalendar from './CaseTimelineCalendar'
+import OfflineSessionSummaryView from './OfflineSessionSummaryView'
 import RiskBadge from './RiskBadge'
+import StaffAiSummaryPanel from './StaffAiSummaryPanel'
 
-const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'ai', label: 'AI Only' },
-  { id: 'offline', label: 'Offline Only' },
-]
+function eventPickerLabel(event) {
+  if (event.type === 'ai') return 'AI Chat'
+  const doc = event.document_name?.replace(/\.[^.]+$/, '')
+  if (doc && doc.length <= 24) return `Offline · ${doc}`
+  if (doc) return `Offline · ${doc.slice(0, 21)}…`
+  return 'Offline Session'
+}
 
 function ChatBubble({ role, text }) {
   const isUser = role === 'user'
@@ -25,71 +31,121 @@ function ChatBubble({ role, text }) {
   )
 }
 
-export default function CaseTimelineTab({ detail }) {
+export default function CaseTimelineTab({ detail, refreshKey = 0, staffProfileId = null, canEdit = false }) {
   const youthId = detail?.youth?.id
+  const youthName = detail?.name
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth() + 1
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}`
 
   const [aiSessions, setAiSessions] = useState([])
+  const [offlineSessions, setOfflineSessions] = useState([])
   const [sessionsError, setSessionsError] = useState('')
-  const offlineSessions = useMemo(
-    () => (detail.offlineSessions || []).map((s) => ({ ...s, type: 'offline' })),
-    [detail.offlineSessions],
-  )
 
-  const [filter, setFilter] = useState('all')
   const [selectedDay, setSelectedDay] = useState(null)
   const [dayEvents, setDayEvents] = useState([])
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [viewTab, setViewTab] = useState('original')
   const [messages, setMessages] = useState([])
   const [messagesLoading, setMessagesLoading] = useState(false)
+  const [insights, setInsights] = useState(detail?.insights || {})
+  const [insightsLoading, setInsightsLoading] = useState(true)
+  const canSaveEdits = canStaffEditYouth(detail?.youth, staffProfileId)
 
   useEffect(() => {
-    if (!youthId) return
+    if (!youthId) {
+      setInsights({})
+      setInsightsLoading(false)
+      return
+    }
 
     let cancelled = false
 
-    async function loadSessions() {
-      const { data, error } = await requireInsforge()
-        .database.from('ai_chat_sessions')
-        .select('*')
-        .eq('youth_id', youthId)
-        .order('session_date', { ascending: false })
-
-      console.log('Staff timeline sessions:', data, error)
-
-      if (cancelled) return
-
-      if (error) {
-        setSessionsError(error.message || 'Failed to load AI chat sessions')
-        setAiSessions([])
-        return
+    async function loadInsights() {
+      setInsightsLoading(true)
+      try {
+        const result = await loadYouthInsights(requireInsforge().database, youthId, youthName)
+        if (!cancelled) setInsights(result.insights || {})
+      } catch {
+        if (!cancelled) setInsights(detail?.insights || {})
+      } finally {
+        if (!cancelled) setInsightsLoading(false)
       }
-
-      setSessionsError('')
-      setAiSessions(data || [])
     }
 
-    loadSessions()
-
+    loadInsights()
     return () => {
       cancelled = true
     }
+  }, [youthId, youthName, refreshKey])
+
+  const loadSessions = useCallback(async () => {
+    if (!youthId) return
+
+    const [aiResult, offlineResult] = await Promise.all([
+      requireInsforge()
+        .database.from('ai_chat_sessions')
+        .select('*')
+        .eq('youth_id', youthId)
+        .order('session_date', { ascending: false }),
+      requireInsforge()
+        .database.from('offline_counselling_sessions')
+        .select('*')
+        .eq('youth_id', youthId)
+        .eq('status', 'approved')
+        .order('session_date', { ascending: false }),
+    ])
+
+    if (aiResult.error || offlineResult.error) {
+      const msg = aiResult.error?.message || offlineResult.error?.message || 'Failed to load sessions'
+      const missingOffline = String(msg).toLowerCase().includes('offline_counselling_sessions')
+      setSessionsError(
+        missingOffline
+          ? 'Offline session table is not set up yet. Open scripts/APPLY-OFFLINE-SESSIONS-COMPLETE.sql in InsForge SQL Editor, copy ALL SQL, and Run.'
+          : msg,
+      )
+      setAiSessions([])
+      setOfflineSessions([])
+      return
+    }
+
+    setSessionsError('')
+    setAiSessions(aiResult.data || [])
+    setOfflineSessions(offlineResult.data || [])
   }, [youthId])
+
+  useEffect(() => {
+    loadSessions()
+  }, [loadSessions, refreshKey])
+
+  const handleSessionUpdated = useCallback((updated) => {
+    if (!updated) return
+    if (selectedEvent?.type === 'ai' && selectedEvent?.id === updated.id) {
+      setSelectedEvent((prev) => ({ ...prev, ...updated }))
+      setAiSessions((rows) => rows.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)))
+    }
+    if (selectedEvent?.type === 'offline' && selectedEvent?.id === updated.id) {
+      setSelectedEvent((prev) => ({ ...prev, ...updated }))
+      setOfflineSessions((rows) => rows.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)))
+    }
+  }, [selectedEvent?.id, selectedEvent?.type])
 
   const allEvents = useMemo(() => {
     const ai = aiSessions.map((s) => ({ ...s, type: 'ai' }))
-    return [...ai, ...offlineSessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date))
-  }, [aiSessions, offlineSessions])
+    const offlineByDate = new Map()
 
-  const filteredEvents = useMemo(() => {
-    if (filter === 'ai') return allEvents.filter((e) => e.type === 'ai')
-    if (filter === 'offline') return allEvents.filter((e) => e.type === 'offline')
-    return allEvents
-  }, [allEvents, filter])
+    for (const session of offlineSessions) {
+      const key = session.session_date
+      const existing = offlineByDate.get(key)
+      if (!existing || new Date(session.updated_at || 0) > new Date(existing.updated_at || 0)) {
+        offlineByDate.set(key, session)
+      }
+    }
+
+    const offline = [...offlineByDate.values()].map((s) => ({ ...s, type: 'offline' }))
+    return [...ai, ...offline].sort((a, b) => new Date(b.session_date) - new Date(a.session_date))
+  }, [aiSessions, offlineSessions])
 
   const aiDays = useMemo(
     () =>
@@ -138,32 +194,16 @@ export default function CaseTimelineTab({ detail }) {
   function handleSelectDay(day) {
     setSelectedDay(day)
     const date = `${monthPrefix}-${String(day).padStart(2, '0')}`
-    const events = filteredEvents.filter((e) => e.session_date === date)
+    const events = allEvents.filter((e) => e.session_date === date)
     setDayEvents(events)
     setSelectedEvent(events[0] || null)
   }
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Case Timeline</h2>
-          <p className="mt-1 text-sm text-slate-500">Complete history of AI chats and offline counselling sessions</p>
-        </div>
-        <div className="inline-flex rounded-2xl bg-slate-50 p-1">
-          {FILTERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setFilter(item.id)}
-              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                filter === item.id ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+      <header>
+        <h2 className="text-2xl font-bold text-slate-800">Case Timeline</h2>
+        <p className="mt-1 text-sm text-slate-500">Complete history of AI chats and offline counselling sessions</p>
       </header>
 
       {sessionsError && (
@@ -195,46 +235,50 @@ export default function CaseTimelineTab({ detail }) {
               </div>
 
               {dayEvents.length > 1 && (
-                <div className="inline-flex rounded-xl bg-slate-50 p-1">
-                  {dayEvents.map((event) => (
-                    <button
-                      key={`${event.type}-${event.id}`}
-                      type="button"
-                      onClick={() => setSelectedEvent(event)}
-                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-                        selectedEvent.id === event.id && selectedEvent.type === event.type
-                          ? 'bg-white text-sky-700 shadow-sm'
-                          : 'text-slate-500'
-                      }`}
-                    >
-                      {event.type === 'ai' ? 'AI Chat' : 'Offline Session'}
-                    </button>
-                  ))}
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Sessions on this day</p>
+                  <div className="inline-flex flex-wrap gap-1 rounded-xl bg-slate-50 p-1">
+                    {dayEvents.map((event) => (
+                      <button
+                        key={`${event.type}-${event.id}`}
+                        type="button"
+                        onClick={() => setSelectedEvent(event)}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                          selectedEvent.id === event.id && selectedEvent.type === event.type
+                            ? 'bg-white text-sky-700 shadow-sm'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        {eventPickerLabel(event)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {selectedEvent.type === 'ai' && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">View</p>
                 <div className="inline-flex rounded-xl bg-slate-50 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setViewTab('original')}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-                      viewTab === 'original' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500'
-                    }`}
-                  >
-                    Original Chat
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewTab('summary')}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-                      viewTab === 'summary' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500'
-                    }`}
-                  >
-                    AI Summary
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => setViewTab('original')}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                    viewTab === 'original' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  {selectedEvent.type === 'ai' ? 'Original Chat' : 'Original Transcript'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewTab('summary')}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                    viewTab === 'summary' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500'
+                  }`}
+                >
+                  AI Summary
+                </button>
                 </div>
-              )}
+              </div>
 
               {selectedEvent.type === 'ai' && viewTab === 'original' && (
                 <section>
@@ -252,60 +296,39 @@ export default function CaseTimelineTab({ detail }) {
               )}
 
               {selectedEvent.type === 'ai' && viewTab === 'summary' && (
-                <section className="space-y-4 rounded-2xl bg-sky-50/60 p-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">Mood check-in</p>
-                    <p className="mt-1 text-sm text-slate-700">{selectedEvent.mood_check_in || 'Not recorded'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">Risk level</p>
-                    <p className="mt-1 text-sm capitalize text-slate-700">{selectedEvent.risk_level || 'low'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">AI Summary</p>
-                    <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                      {selectedEvent.ai_summary || 'No summary available yet.'}
-                    </p>
-                  </div>
+                <StaffAiSummaryPanel
+                  insights={insights}
+                  youthName={youthName}
+                  session={selectedEvent}
+                  messages={messages}
+                  loading={insightsLoading}
+                  moodCheckIn={selectedEvent.mood_check_in}
+                  riskLevel={selectedEvent.risk_level}
+                  staffProfileId={staffProfileId}
+                  canEdit={canSaveEdits}
+                  onSessionUpdated={handleSessionUpdated}
+                />
+              )}
+
+              {selectedEvent.type === 'offline' && viewTab === 'original' && (
+                <section>
+                  {selectedEvent.document_name && (
+                    <p className="mb-2 text-xs text-slate-500">Source document: {selectedEvent.document_name}</p>
+                  )}
+                  <p className="whitespace-pre-wrap rounded-2xl bg-amber-50/50 p-4 text-sm leading-relaxed text-slate-700">
+                    {selectedEvent.transcript || 'No transcript recorded yet.'}
+                  </p>
                 </section>
               )}
 
-              {selectedEvent.type === 'offline' && (
-                <>
-                  <section>
-                    <h4 className="text-sm font-semibold text-slate-700">Original Chat / Transcript</h4>
-                    <p className="mt-2 whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
-                      {selectedEvent.transcript || 'No transcript recorded yet.'}
-                    </p>
-                  </section>
-
-                  <section>
-                    <h4 className="text-sm font-semibold text-slate-700">AI Summary</h4>
-                    <p className="mt-2 text-sm text-slate-600">{selectedEvent.ai_summary || 'No summary yet.'}</p>
-                  </section>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <section>
-                      <h4 className="text-sm font-semibold text-slate-700">Categories</h4>
-                      <p className="mt-2 text-sm text-slate-600">
-                        {(selectedEvent.categories || []).join(', ') || 'Counselling'}
-                      </p>
-                    </section>
-                    <section>
-                      <h4 className="text-sm font-semibold text-slate-700">Emotion Analysis</h4>
-                      <p className="mt-2 text-sm text-slate-600">
-                        {(selectedEvent.emotion_analysis || []).join(', ') || 'Not analysed yet'}
-                      </p>
-                    </section>
-                  </div>
-
-                  {selectedEvent.suggested_follow_up && (
-                    <section>
-                      <h4 className="text-sm font-semibold text-slate-700">Suggested Follow-up</h4>
-                      <p className="mt-2 text-sm text-slate-600">{selectedEvent.suggested_follow_up}</p>
-                    </section>
-                  )}
-                </>
+              {selectedEvent.type === 'offline' && viewTab === 'summary' && (
+                <OfflineSessionSummaryView
+                  session={selectedEvent}
+                  youthName={youthName}
+                  staffProfileId={staffProfileId}
+                  canEdit={canSaveEdits}
+                  onSessionUpdated={handleSessionUpdated}
+                />
               )}
             </div>
           )}

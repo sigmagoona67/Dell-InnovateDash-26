@@ -18,34 +18,21 @@ export default function PendingYouthCard({ youth, onAssign, assigning, hideViewD
 
   return (
     <article className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-bold text-slate-800">{youth.name}</h3>
-          <div className="mt-2">
-            <RiskBadge level={youth.riskLevel} />
-          </div>
+      <div>
+        <h3 className="text-lg font-bold text-slate-900">{youth.name}</h3>
+        <div className="mt-2">
+          <RiskBadge level={youth.riskLevel} />
         </div>
       </div>
 
-      <div className="mt-4 space-y-2 text-sm text-slate-600">
-        {youth.email && (
-          <p>
-            <span className="font-medium text-slate-700">Email: </span>
-            {youth.email}
-          </p>
-        )}
-        <p>
-          <span className="font-medium text-slate-700">Onboarding: </span>
-          {youth.onboardingCompleted ? 'Completed' : 'Not completed yet'}
-        </p>
-        <p>
-          <span className="font-medium text-slate-700">Current challenges: </span>
-          {youth.challengesLabel || 'Questionnaire not completed yet'}
-        </p>
-        <p>
-          <span className="font-medium text-slate-700">AI summary: </span>
-          {youth.aiSummary || 'No AI summary yet.'}
-        </p>
+      <div className="mt-5">
+        <p className="text-sm font-semibold text-slate-900">Current Concern</p>
+        <p className="mt-1.5 text-sm leading-snug text-slate-600">{youth.currentConcern}</p>
+      </div>
+
+      <div className="mt-4">
+        <p className="text-sm font-semibold text-slate-900">Case Preview</p>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{youth.casePreview}</p>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">

@@ -1,10 +1,15 @@
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+const MARKER_EMOJI = { ai: '🔵', offline: '🟡' }
+
 function DayMarkers({ hasAi, hasOffline }) {
-  if (hasAi && hasOffline) return <span className="text-[10px] leading-none">🔵🟡</span>
-  if (hasAi) return <span className="h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden="true" />
-  if (hasOffline) return <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />
-  return null
+  if (!hasAi && !hasOffline) return null
+  return (
+    <span className="-mt-0.5 text-[10px] leading-none tracking-tighter" aria-hidden="true">
+      {hasAi ? MARKER_EMOJI.ai : ''}
+      {hasOffline ? MARKER_EMOJI.offline : ''}
+    </span>
+  )
 }
 
 export default function CaseTimelineCalendar({
@@ -17,7 +22,7 @@ export default function CaseTimelineCalendar({
 }) {
   const firstDay = new Date(year, month - 1, 1).getDay()
   const daysInMonth = new Date(year, month, 0).getDate()
-  const monthLabel = new Date(year, month - 1, 1).toLocaleString('default', {
+  const monthLabel = new Date(year, month - 1, 1).toLocaleString('en-SG', {
     month: 'long',
     year: 'numeric',
   })
@@ -49,14 +54,12 @@ export default function CaseTimelineCalendar({
               type="button"
               disabled={!clickable}
               onClick={() => clickable && onSelectDay(day)}
-              className={`relative flex h-10 flex-col items-center justify-center rounded-xl text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+              className={`flex h-10 flex-col items-center justify-center gap-0 rounded-xl text-sm font-medium leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
                 clickable ? 'cursor-pointer hover:bg-sky-50 text-slate-700' : 'cursor-default text-slate-300'
               } ${isSelected ? 'bg-sky-100 text-sky-700 ring-1 ring-sky-200' : ''}`}
             >
-              {day}
-              <span className="absolute bottom-1 flex items-center justify-center">
-                <DayMarkers hasAi={hasAi} hasOffline={hasOffline} />
-              </span>
+              <span>{day}</span>
+              <DayMarkers hasAi={hasAi} hasOffline={hasOffline} />
             </button>
           )
         })}

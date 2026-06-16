@@ -5,6 +5,52 @@ import PendingYouthCard from '../../components/staff/PendingYouthCard'
 import { useStaffSession } from '../../context/StaffSessionContext'
 import { assignYouthToMe, getStaffDashboard } from '../../services/staffService'
 
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'assigned', label: 'Assigned Youth' },
+  { id: 'pending', label: 'Pending Assignment' },
+]
+
+function DashboardFilterBar({ activeFilter, onChange, assignedCount, pendingCount }) {
+  return (
+    <div
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200/90 bg-white/95 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-md"
+      style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+    >
+      <div className="mx-auto flex max-w-6xl gap-2 px-4 py-3 sm:px-6">
+        {FILTERS.map((filter) => {
+          const active = activeFilter === filter.id
+          const count =
+            filter.id === 'assigned'
+              ? assignedCount
+              : filter.id === 'pending'
+                ? pendingCount
+                : assignedCount + pendingCount
+
+          return (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => onChange(filter.id)}
+              className={`flex-1 rounded-2xl px-3 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+                active
+                  ? 'bg-sky-500 text-white shadow-sm'
+                  : 'border border-slate-200 bg-white text-slate-700 hover:border-sky-200 hover:bg-sky-50'
+              }`}
+              aria-pressed={active}
+            >
+              <span className="block truncate">{filter.label}</span>
+              <span className={`mt-0.5 block text-xs font-medium ${active ? 'text-sky-100' : 'text-slate-500'}`}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function StaffDashboardHome() {
   const { context } = useStaffSession()
   const [dashboard, setDashboard] = useState(null)
@@ -12,6 +58,7 @@ export default function StaffDashboardHome() {
   const [assigningId, setAssigningId] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [notice, setNotice] = useState('')
+  const [activeFilter, setActiveFilter] = useState('all')
 
   const loadDashboard = useCallback(async () => {
     setLoading(true)
@@ -52,9 +99,13 @@ export default function StaffDashboardHome() {
   }
 
   const staffName = dashboard?.staff?.display_name || context?.staffProfile?.display_name || 'Staff'
+  const assignedCount = dashboard?.assigned?.length ?? 0
+  const pendingCount = dashboard?.pending?.length ?? 0
+  const showAssigned = activeFilter === 'all' || activeFilter === 'assigned'
+  const showPending = activeFilter === 'all' || activeFilter === 'pending'
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-white">
+    <div className="relative min-h-dvh overflow-hidden bg-white pb-28">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 top-0 h-96 w-96 rounded-full bg-sky-50 blur-3xl" />
         <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
@@ -88,59 +139,74 @@ export default function StaffDashboardHome() {
           <p className="text-slate-500">Loading dashboard…</p>
         ) : (
           <>
-            <section className="mb-10">
-              <h2 className="mb-4 text-xl font-bold text-slate-800">Assigned Youth</h2>
-              {dashboard?.assigned?.length ? (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {dashboard.assigned.map((youth) => (
-                    <AssignedYouthCard key={youth.id} youth={youth} />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-sm">
-                  <p className="text-slate-600">No assigned youth yet.</p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Choose a youth from Pending Assignment below and click Assign to Me.
+            {showAssigned && (
+              <section className="mb-10">
+                <h2 className="mb-4 text-xl font-bold text-slate-800">Assigned Youth</h2>
+                {dashboard?.assigned?.length ? (
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {dashboard.assigned.map((youth) => (
+                      <AssignedYouthCard key={youth.id} youth={youth} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-sm">
+                    <p className="text-slate-600">No assigned youth yet.</p>
+                    {activeFilter !== 'assigned' && (
+                      <p className="mt-2 text-sm text-slate-500">
+                        Choose a youth from Pending Assignment below and click Assign to Me.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {showPending && (
+              <section>
+                <h2 className="mb-4 text-xl font-bold text-slate-800">Pending Assignment</h2>
+
+                {dashboard?.pendingDebug?.error && (
+                  <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    Pending youth query error: {dashboard.pendingDebug.error}
                   </p>
-                </div>
-              )}
-            </section>
+                )}
 
-            <section>
-              <h2 className="mb-4 text-xl font-bold text-slate-800">Pending Assignment</h2>
+                {dashboard?.pendingDebug?.isEmpty && !dashboard?.pendingDebug?.error && (
+                  <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    No pending youth returned from backend
+                  </p>
+                )}
 
-              {dashboard?.pendingDebug?.error && (
-                <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  Pending youth query error: {dashboard.pendingDebug.error}
-                </p>
-              )}
-
-              {dashboard?.pendingDebug?.isEmpty && !dashboard?.pendingDebug?.error && (
-                <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  No pending youth returned from backend
-                </p>
-              )}
-
-              {dashboard?.pending?.length ? (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {dashboard.pending.map((youth) => (
-                    <PendingYouthCard
-                      key={youth.id}
-                      youth={youth}
-                      onAssign={handleAssign}
-                      assigning={assigningId === youth.id}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-sm">
-                  <p className="text-slate-600">No youth waiting for assignment right now.</p>
-                </div>
-              )}
-            </section>
+                {dashboard?.pending?.length ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {dashboard.pending.map((youth) => (
+                      <PendingYouthCard
+                        key={youth.id}
+                        youth={youth}
+                        onAssign={handleAssign}
+                        assigning={assigningId === youth.id}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-sm">
+                    <p className="text-slate-600">No youth waiting for assignment right now.</p>
+                  </div>
+                )}
+              </section>
+            )}
           </>
         )}
       </div>
+
+      {!loading && (
+        <DashboardFilterBar
+          activeFilter={activeFilter}
+          onChange={setActiveFilter}
+          assignedCount={assignedCount}
+          pendingCount={pendingCount}
+        />
+      )}
     </div>
   )
 }

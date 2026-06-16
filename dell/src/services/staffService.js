@@ -1,7 +1,17 @@
 import { requireInsforge } from '../lib/insforgeClient'
+import {
+  buildAssignedYouthCardMeta,
+  formatCurrentStateDisplay,
+  formatLatestInteractionInsight,
+  formatYouthNameLine,
+} from '../lib/assignedYouthCard'
+import { resolveCurrentConcern, resolveCasePreview } from '../lib/dashboardCard'
 import { findProfileByAuthUserId, createProfile, resolveDisplayNameFromUser } from '../lib/profileService'
+import { resolveYouthRiskLevel } from '../lib/riskResolver'
 import { RISK_ORDER, sortByRisk } from '../lib/staffMockData'
 import { EMPTY_QUESTIONNAIRE, getQuestionnaire } from './questionnaireService'
+
+import { loadYouthInsights } from './insightsFallbackService'
 
 function db() {
   return requireInsforge().database
@@ -32,36 +42,46 @@ async function safeOptionalQuery(queryPromise, label) {
   return data
 }
 
-function pickRiskLevel(sessions, insights) {
-  if (insights?.risk_level) return insights.risk_level
-  const levels = (sessions || []).map((s) => s.risk_level).filter(Boolean)
-  if (levels.includes('high')) return 'high'
-  if (levels.includes('medium')) return 'medium'
-  return 'low'
-}
+function mapYouthCard(youthRow, profileRow, questionnaire, sessions, offlineSessions, insights, messages, lastViewed) {
+  const riskLevel = resolveYouthRiskLevel({
+    insights,
+    aiSessions: sessions,
+    offlineSessions,
+    messages: messages || [],
+  })
 
-function mapYouthCard(youthRow, profileRow, questionnaire, sessions, insights, lastViewed) {
-  const latestSession = (sessions || []).sort(
-    (a, b) => new Date(b.updated_at || b.session_date) - new Date(a.updated_at || a.session_date),
-  )[0]
-  const hasNew = Boolean(
-    latestSession &&
-      (!lastViewed || new Date(latestSession.updated_at || latestSession.created_at) > new Date(lastViewed)),
-  )
+  const displayName =
+    youthRow.preferred_name || profileRow?.display_name || profileRow?.email?.split('@')[0] || 'Youth'
+
+  const activityMeta = buildAssignedYouthCardMeta({
+    messages: messages || [],
+    sessions: sessions || [],
+    offlineSessions: offlineSessions || [],
+    insights,
+    lastViewedAt: lastViewed,
+  })
+
+  const currentConcern = resolveCurrentConcern({ insights, questionnaire })
+  const casePreview = resolveCasePreview({ insights, sessions, youthName: displayName })
+
+  const age = youthRow.age ?? questionnaire?.age ?? null
 
   return {
     id: youthRow.id,
     userId: profileRow?.id,
-    name: youthRow.preferred_name || profileRow?.display_name || profileRow?.email?.split('@')[0] || 'Youth',
+    name: displayName,
+    nameLine: formatYouthNameLine(displayName, age),
     email: profileRow?.email || '',
     onboardingCompleted: Boolean(youthRow.onboarding_completed),
-    riskLevel: pickRiskLevel(sessions, insights),
-    hasNew,
-    currentChallenges: questionnaire?.current_challenges || [],
-    challengesLabel: youthRow.onboarding_completed
-      ? (questionnaire?.current_challenges || []).join(', ') || 'Questionnaire completed'
-      : 'Questionnaire not completed yet',
-    aiSummary: latestSession?.ai_summary || insights?.latest_change || 'No AI summary yet.',
+    riskLevel,
+    hasNew: activityMeta.hasNew,
+    currentConcern,
+    casePreview,
+    currentStateDisplay: formatCurrentStateDisplay(insights),
+    latestInteractionInsight: formatLatestInteractionInsight(insights),
+    lastActivityLabel: activityMeta.lastActivityLabel,
+    lastActivityDisplay: activityMeta.lastActivityDisplay,
+    lastActivityAt: activityMeta.lastActivityAt,
     assignmentStatus: youthRow.assignment_status,
     assignedStaffId: youthRow.assigned_staff_id,
   }
@@ -113,6 +133,12 @@ export async function bootstrapStaffSession() {
   return { user, staffProfile }
 }
 
+/** Only the youth's assigned worker may edit insights / session summaries. */
+export function canStaffEditYouth(youthRow, staffProfileId) {
+  if (!youthRow || !staffProfileId) return false
+  return String(youthRow.assigned_staff_id || '') === String(staffProfileId)
+}
+
 async function fetchLastViewed(staffId, youthIds) {
   if (!youthIds.length) return {}
 
@@ -135,7 +161,7 @@ async function buildYouthCards(staffId, youthRows) {
   const youthIds = youthRows.map((row) => row.id)
   const userIds = youthRows.map((row) => row.user_id)
 
-  const [profiles, questionnaires, sessions, insights, lastViewedMap] = await Promise.all([
+  const [profiles, questionnaires, sessions, offlineSessions, insights, messages, lastViewedMap] = await Promise.all([
     db()
       .from('profiles')
       .select('id, display_name, email')
@@ -154,16 +180,33 @@ async function buildYouthCards(staffId, youthRows) {
       }),
     db()
       .from('ai_chat_sessions')
-      .select('*')
+      .select('youth_id, session_date, mood_check_in, ai_summary, risk_level, updated_at, created_at')
       .in('youth_id', youthIds)
       .then(({ data, error }) => {
         if (error) throw error
         return data
       }),
     safeOptionalQuery(
+      db()
+        .from('offline_counselling_sessions')
+        .select('youth_id, risk_level, status, session_date, updated_at, approved_at, created_at')
+        .in('youth_id', youthIds)
+        .eq('status', 'approved'),
+      'offline_counselling_sessions',
+    ),
+    safeOptionalQuery(
       db().from('ai_dynamic_insights').select('*').in('youth_id', youthIds),
       'ai_dynamic_insights',
     ),
+    db()
+      .from('ai_messages')
+      .select('youth_id, sender, message, created_at')
+      .in('youth_id', youthIds)
+      .order('created_at', { ascending: true })
+      .then(({ data, error }) => {
+        if (error) throw error
+        return data
+      }),
     fetchLastViewed(staffId, youthIds),
   ])
 
@@ -173,7 +216,15 @@ async function buildYouthCards(staffId, youthRows) {
     acc[id] = (sessions || []).filter((s) => s.youth_id === id)
     return acc
   }, {})
+  const offlineSessionsMap = youthIds.reduce((acc, id) => {
+    acc[id] = (offlineSessions || []).filter((s) => s.youth_id === id)
+    return acc
+  }, {})
   const insightsMap = Object.fromEntries((insights || []).map((i) => [i.youth_id, i]))
+  const messagesMap = youthIds.reduce((acc, id) => {
+    acc[id] = (messages || []).filter((m) => m.youth_id === id)
+    return acc
+  }, {})
 
   return youthRows.map((row) =>
     mapYouthCard(
@@ -181,25 +232,16 @@ async function buildYouthCards(staffId, youthRows) {
       profileMap[row.user_id],
       questionnaireMap[row.id],
       sessionsMap[row.id],
+      offlineSessionsMap[row.id],
       insightsMap[row.id],
+      messagesMap[row.id],
       lastViewedMap[row.id],
     ),
   )
 }
 
-function mapPendingYouthRow(row) {
-  return {
-    id: row.id,
-    name: row.preferred_name || 'Youth',
-    assignmentStatus: row.assignment_status,
-    riskLevel: 'low',
-    aiSummary: 'No AI summary yet.',
-    challengesLabel: 'No challenges recorded yet.',
-  }
-}
-
-/** Minimal pending query — youth_profiles only, no joins, no staff filter. */
-export async function loadPendingYouth() {
+/** Pending youth cards use the same risk/insights logic as assigned cards. */
+export async function loadPendingYouth(staffId) {
   console.log('Loading pending youth...')
 
   const { data, error } = await db().from('youth_profiles').select('*').is('assigned_staff_id', null)
@@ -216,7 +258,7 @@ export async function loadPendingYouth() {
   }
 
   const rawRows = data || []
-  const pending = rawRows.map(mapPendingYouthRow)
+  const pending = staffId ? await buildYouthCards(staffId, rawRows) : []
 
   console.log('Pending youth mapped cards:', pending)
 
@@ -230,7 +272,7 @@ export async function loadPendingYouth() {
 export async function getStaffDashboard() {
   const { staffProfile } = await bootstrapStaffSession()
 
-  const pendingResult = await loadPendingYouth()
+  const pendingResult = await loadPendingYouth(staffProfile.id)
 
   const { data: assignedRows, error: assignedError } = await db()
     .from('youth_profiles')
@@ -393,23 +435,44 @@ export async function getYouthDetail(youthId) {
 
   await markYouthViewed(youthId)
 
+  const displayName =
+    youthRow.preferred_name || profileRow?.display_name || profileRow?.email?.split('@')[0] || 'Youth'
+
+  let mergedInsights = insights || null
+  try {
+    const { insights: loaded } = await loadYouthInsights(db(), youthId, displayName)
+    if (loaded && Object.keys(loaded).length) mergedInsights = loaded
+  } catch (error) {
+    console.warn('[staff] merged insights load failed:', error.message)
+  }
+
+  const approvedOffline = (offlineSessions || []).filter((s) => s.status === 'approved')
+
   return {
     youth: youthRow,
     profile: profileRow,
-    name: youthRow.preferred_name || profileRow?.display_name || profileRow?.email?.split('@')[0] || 'Youth',
+    name: displayName,
     questionnaire: questionnaire || { ...EMPTY_QUESTIONNAIRE },
-    insights: insights || {
-      current_state: [],
-      risk_level: pickRiskLevel(aiSessions, null),
-      main_risk: [],
-      best_communication_approach: [],
-      latest_change: '',
-    },
+    insights:
+      mergedInsights ||
+      {
+        current_state: [],
+        risk_level: resolveYouthRiskLevel({
+          insights: null,
+          aiSessions: aiSessions || [],
+          offlineSessions: approvedOffline,
+        }),
+        main_risk: [],
+        best_communication_approach: [],
+        latest_change: '',
+        overall_summary: '',
+      },
     aiSessions: (aiSessions || []).map((s) => ({ ...s, type: 'ai' })),
     offlineSessions: (offlineSessions || []).map((s) => ({ ...s, type: 'offline' })),
     staffTablesReady: offlineSessions !== null,
     isAssigned: youthRow.assigned_staff_id === staffProfile.id,
     isPending: youthRow.assigned_staff_id == null,
+    canEdit: youthRow.assigned_staff_id === staffProfile.id,
     usingMock: false,
   }
 }

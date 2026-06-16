@@ -1,31 +1,55 @@
 import { useEffect, useState } from 'react'
 import { MOODS } from '../../lib/youthMockData'
-import { recordMood, sendChatMessage } from '../../services/aiService'
+import { recordMood, sendChatMessage, syncProfileInsights } from '../../services/aiService'
 import {
   getOrCreateTodaySession,
   getSessionMessages,
   mapMessagesForUi,
 } from '../../services/chatService'
 
-function ChatBubble({ role, text }) {
+function ChatBubble({ role, text, escalationResources }) {
   const isUser = role === 'user'
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`
-          max-w-[85%] rounded-3xl px-4 py-3 text-sm leading-relaxed shadow-sm
+          max-w-[92%] rounded-3xl px-4 py-3 leading-relaxed shadow-sm
           ${isUser
-            ? 'rounded-br-lg bg-teal-500 text-white'
-            : 'rounded-bl-lg border border-slate-100 bg-white text-slate-700'}
+            ? 'rounded-br-lg bg-teal-500 text-sm text-white'
+            : 'rounded-bl-lg border border-slate-100 bg-white text-[15px] text-slate-700'}
         `}
       >
-        {text}
+        <p className="whitespace-pre-wrap">{text}</p>
+        {escalationResources?.length > 0 && (
+          <ul className="mt-3 space-y-1 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+            {escalationResources.map((item) => (
+              <li key={item}>• {item}</li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )
 }
 
-export default function AICompanion({ youthId, youthName }) {
+function friendlyYouthError(error, fallback) {
+  const detail = String(error?.message || '')
+  if (/duplicate key|unique constraint|23505/i.test(detail)) return ''
+  if (/Session expired/i.test(detail)) return detail
+  if (/took too long/i.test(detail)) return detail
+  if (detail && detail !== '[object Object]') return fallback
+  return fallback
+}
+
+function applyAiResultToMessage(result) {
+  return {
+    role: 'ai',
+    text: result.reply,
+    escalationResources: result.escalationNeeded ? result.escalationResources || [] : [],
+  }
+}
+
+export default function AICompanion({ youthId, youthName, staffName }) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -33,6 +57,11 @@ export default function AICompanion({ youthId, youthName }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [moodDone, setMoodDone] = useState(false)
+  const [workerLabel, setWorkerLabel] = useState(staffName || '')
+
+  useEffect(() => {
+    setWorkerLabel(staffName || '')
+  }, [staffName])
 
   useEffect(() => {
     async function loadSession() {
@@ -47,7 +76,8 @@ export default function AICompanion({ youthId, youthName }) {
         setMessages(uiMessages)
         setMoodDone(Boolean(todaySession.mood_check_in) || uiMessages.length > 0)
       } catch (error) {
-        setErrorMessage(error.message || 'Unable to load today’s chat session.')
+        const message = friendlyYouthError(error, 'Unable to load today’s chat session.')
+        if (message) setErrorMessage(message)
       } finally {
         setLoading(false)
       }
@@ -60,17 +90,44 @@ export default function AICompanion({ youthId, youthName }) {
     if (!session) return
     setSending(true)
     setErrorMessage('')
+
+    const moodLine = `I'm feeling ${mood.label.toLowerCase()} today.`
+    setMessages([
+      { role: 'user', text: moodLine },
+      { role: 'ai', text: 'Thinking...' },
+    ])
+    setMoodDone(true)
+
     try {
       const result = await recordMood(session.id, mood.label)
-      const moodLine = `I'm feeling ${mood.label.toLowerCase()} today.`
+      if (result.insightsSyncError) console.warn('[youth] insights not saved:', result.insightsSyncError)
+      if (result.staffName) setWorkerLabel(result.staffName)
       setMessages([
         { role: 'user', text: moodLine },
-        { role: 'ai', text: result.reply },
+        applyAiResultToMessage(result),
       ])
-      setMoodDone(true)
-      setSession((prev) => ({ ...prev, mood_check_in: mood.label }))
+      setSession((prev) => ({
+        ...prev,
+        mood_check_in: mood.label,
+        risk_level: result.insights?.risk_level || result.riskLevel || prev?.risk_level || 'low',
+      }))
+      setErrorMessage('')
+      void syncProfileInsights({ summary: result.summary, riskLevel: result.riskLevel || 'low' }).catch((syncError) => {
+        console.warn('[youth] profile sync after mood:', syncError?.message || syncError)
+      })
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to save mood check-in.')
+      try {
+        const rows = await getSessionMessages(session.id)
+        const uiMessages = mapMessagesForUi(rows)
+        if (uiMessages.length) setMessages(uiMessages)
+        else {
+          setMessages([{ role: 'user', text: moodLine }])
+        }
+      } catch {
+        setMessages([{ role: 'user', text: moodLine }])
+      }
+      const message = friendlyYouthError(error, 'Unable to save mood check-in.')
+      if (message) setErrorMessage(message)
     } finally {
       setSending(false)
     }
@@ -89,20 +146,48 @@ export default function AICompanion({ youthId, youthName }) {
 
     try {
       const result = await sendChatMessage(session.id, trimmed)
-      setMessages([...optimistic, { role: 'ai', text: result.reply }])
+      if (result.insightsSyncError) console.warn('[youth] insights not saved:', result.insightsSyncError)
+      if (result.staffName) setWorkerLabel(result.staffName)
+      if (result.replySource) console.info('[youth] reply from:', result.replySource, result.model)
+      setMessages([...optimistic, applyAiResultToMessage(result)])
       setSession((prev) => ({
         ...prev,
         ai_summary: result.summary,
-        risk_level: result.riskLevel,
+        risk_level: result.insights?.risk_level || result.riskLevel || prev?.risk_level || 'low',
       }))
+      setErrorMessage('')
+      void syncProfileInsights({ summary: result.summary, riskLevel: result.riskLevel || 'low' }).catch((syncError) => {
+        console.warn('[youth] profile sync after chat:', syncError?.message || syncError)
+      })
     } catch (error) {
-      setMessages(messages)
-      setInput(trimmed)
-      setErrorMessage(error.message || 'Unable to send message.')
+      const detail = friendlyYouthError(
+        error,
+        'Unable to send message. Check your connection and try again.',
+      )
+      try {
+        const rows = await getSessionMessages(session.id)
+        const uiMessages = mapMessagesForUi(rows)
+        if (uiMessages.length) {
+          setMessages(uiMessages)
+        }
+      } catch {
+        setMessages(optimistic)
+      }
+      if (detail) {
+        setErrorMessage(
+          detail.includes('Session expired')
+            ? detail
+            : `${detail} Your message is still shown — tap Send to try again.`,
+        )
+      }
     } finally {
       setSending(false)
     }
   }
+
+  const syncBanner = workerLabel
+    ? `After-hours companion · your words sync to ${workerLabel} so support stays connected`
+    : 'After-hours companion · your words sync to your youth worker so support stays connected'
 
   if (loading) {
     return (
@@ -115,9 +200,12 @@ export default function AICompanion({ youthId, youthName }) {
   if (!moodDone) {
     return (
       <div className="flex h-full flex-col">
-        <header className="mb-8">
+        <header className="mb-6">
           <h1 className="text-2xl font-bold text-slate-800 sm:text-3xl">Daily Check-in</h1>
           <p className="mt-2 text-slate-600">How are you feeling today, {youthName}?</p>
+          <p className="mt-2 rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-2 text-sm text-teal-800">
+            {syncBanner}
+          </p>
         </header>
 
         {errorMessage && (
@@ -149,6 +237,9 @@ export default function AICompanion({ youthId, youthName }) {
       <header className="mb-4 border-b border-slate-100 pb-4">
         <h1 className="text-2xl font-bold text-slate-800">AI Companion</h1>
         <p className="mt-1 text-sm text-slate-500">A safe space to talk, anytime after hours.</p>
+        <p className="mt-2 rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-2 text-sm text-teal-800">
+          {syncBanner}
+        </p>
       </header>
 
       {errorMessage && (
@@ -159,7 +250,12 @@ export default function AICompanion({ youthId, youthName }) {
 
       <div className="flex-1 space-y-4 overflow-y-auto rounded-3xl border border-slate-100 bg-sky-50/40 p-4">
         {messages.map((msg, index) => (
-          <ChatBubble key={`${msg.role}-${index}`} role={msg.role} text={msg.text} />
+          <ChatBubble
+            key={`${msg.role}-${index}`}
+            role={msg.role}
+            text={msg.text}
+            escalationResources={msg.escalationResources}
+          />
         ))}
       </div>
 

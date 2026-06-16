@@ -9,6 +9,7 @@ export const insforge = isInsforgeConfigured
   ? createClient({
       baseUrl,
       anonKey,
+      timeout: 300000,
     })
   : null
 
@@ -21,6 +22,16 @@ export function requireInsforge() {
     throw new Error(insforgeConfigHint || 'InsForge client is not configured.')
   }
   return insforge
+}
+
+/** Same authenticated client — do NOT create a second client (auth token is not shared). */
+export function requireInsforgeProfileSync() {
+  return requireInsforge()
+}
+
+/** @deprecated Use requireInsforge() — separate clients do not share login tokens. */
+export function requireInsforgeLongRunning() {
+  return requireInsforge()
 }
 
 export function getInsforge() {
