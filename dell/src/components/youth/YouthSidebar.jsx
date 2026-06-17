@@ -1,12 +1,13 @@
 const NAV_ITEMS = [
   { id: 'companion', icon: '🏠', label: 'AI Companion' },
   { id: 'history', icon: '📅', label: 'Chat History' },
+  { id: 'schedule', icon: '🗓️', label: 'Schedule' },
   { id: 'worker', icon: '👩', label: 'Assigned Worker' },
 ]
 
 export default function YouthSidebar({ active, onNavigate, youthName }) {
   return (
-    <aside className="flex w-full flex-col border-r border-slate-100 bg-white p-4 lg:w-64 lg:p-6">
+    <aside className="relative z-10 flex w-full flex-col border-r border-slate-100 bg-white p-4 lg:w-64 lg:p-6">
       <div className="mb-8">
         <p className="text-xs font-medium uppercase tracking-wide text-teal-600">Youth Portal</p>
         <h2 className="mt-1 text-lg font-bold text-slate-800">CareBridge AI</h2>

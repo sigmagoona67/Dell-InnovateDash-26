@@ -1,12 +1,10 @@
 import { Link } from 'react-router-dom'
+import AmbientBackground from './AmbientBackground'
 
 export default function PlaceholderCard({ badge, title, description, actionLabel, actionTo }) {
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-white px-6 py-16">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-20 top-1/3 h-72 w-72 rounded-full bg-sky-50 blur-3xl" />
-        <div className="absolute -right-16 bottom-1/3 h-64 w-64 rounded-full bg-teal-50 blur-3xl" />
-      </div>
+    <div className="relative isolate flex min-h-dvh items-center justify-center overflow-hidden bg-white px-6 py-16">
+      <AmbientBackground variant="centered" />
 
       <section className="relative z-10 w-full max-w-2xl rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-[0_8px_36px_-14px_rgba(45,90,110,0.2)] sm:p-10">
         <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/80 px-4 py-1.5 text-sm font-medium text-sky-600">

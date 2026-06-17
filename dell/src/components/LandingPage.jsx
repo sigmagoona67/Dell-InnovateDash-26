@@ -1,17 +1,13 @@
 import PortalCard from './PortalCard'
 import { useNavigate } from 'react-router-dom'
+import AmbientBackground from './AmbientBackground'
 
 export default function LandingPage() {
   const navigate = useNavigate()
 
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-white">
-      {/* Soft ambient background */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-sky-50 blur-3xl" />
-        <div className="absolute -right-24 bottom-1/4 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
-        <div className="absolute left-1/2 top-0 h-px w-full max-w-3xl -translate-x-1/2 bg-gradient-to-r from-transparent via-sky-100 to-transparent" />
-      </div>
+    <div className="relative isolate flex min-h-dvh flex-col overflow-hidden bg-white">
+      <AmbientBackground variant="landing" />
 
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 py-16 sm:px-8">
         <div className="mx-auto w-full max-w-5xl text-center">

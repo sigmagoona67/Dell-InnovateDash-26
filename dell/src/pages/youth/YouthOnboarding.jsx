@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import AmbientBackground from '../../components/AmbientBackground'
 import { useYouthSession } from '../../context/YouthSessionContext'
 import { ONBOARDING_SECTIONS } from '../../lib/youthMockData'
 import { completeOnboarding } from '../../services/questionnaireService'
@@ -89,11 +90,8 @@ export default function YouthOnboarding() {
   }
 
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-white">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 top-1/4 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
-        <div className="absolute -right-20 bottom-1/4 h-72 w-72 rounded-full bg-sky-50 blur-3xl" />
-      </div>
+    <div className="relative isolate flex min-h-dvh flex-col overflow-hidden bg-white">
+      <AmbientBackground variant="teal" />
 
       <main className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10 sm:px-8">
         <header className="mb-8">

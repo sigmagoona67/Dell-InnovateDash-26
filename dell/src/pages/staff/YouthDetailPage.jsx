@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import AmbientBackground from '../../components/AmbientBackground'
 import CaseTimelineTab from '../../components/staff/CaseTimelineTab'
 import CharacteristicsTab from '../../components/staff/CharacteristicsTab'
 import OfflineSessionTab from '../../components/staff/OfflineSessionTab'
+import YouthScheduleTab from '../../components/staff/YouthScheduleTab'
 import StaffSidebar from '../../components/staff/StaffSidebar'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
 import { useStaffSession } from '../../context/StaffSessionContext'
@@ -66,11 +68,8 @@ export default function YouthDetailPage() {
   }
 
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-white lg:flex-row">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 top-0 h-96 w-96 rounded-full bg-sky-50 blur-3xl" />
-        <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
-      </div>
+    <div className="relative isolate flex min-h-dvh flex-col overflow-hidden bg-white lg:flex-row">
+      <AmbientBackground variant="sky" />
 
       <StaffSidebar
         active={activeTab}
@@ -85,6 +84,7 @@ export default function YouthDetailPage() {
           {[
             { id: 'characteristics', label: '🧩 Profile' },
             { id: 'timeline', label: '📅 Timeline' },
+            { id: 'schedule', label: '🗓️ Schedule' },
             { id: 'offline', label: '📝 Offline' },
           ].map((item) => (
             <button
@@ -126,6 +126,13 @@ export default function YouthDetailPage() {
 
           {activeTab === 'characteristics' && <CharacteristicsTab detail={detail} />}
           {activeTab === 'timeline' && <CaseTimelineTab detail={detail} />}
+          {activeTab === 'schedule' && (
+            <YouthScheduleTab
+              detail={detail}
+              staffId={context?.staffProfile?.id}
+              onUpdated={loadDetail}
+            />
+          )}
           {activeTab === 'offline' && <OfflineSessionTab detail={detail} onUpdated={loadDetail} />}
         </main>
       </div>

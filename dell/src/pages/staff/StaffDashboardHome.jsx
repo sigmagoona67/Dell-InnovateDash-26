@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import AmbientBackground from '../../components/AmbientBackground'
 import AssignedYouthCard from '../../components/staff/AssignedYouthCard'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
+import StaffSchedulePanel from '../../components/staff/StaffSchedulePanel'
 import { useStaffSession } from '../../context/StaffSessionContext'
 import { assignYouthToMe, getStaffDashboard } from '../../services/staffService'
 
@@ -52,15 +54,17 @@ export default function StaffDashboardHome() {
   }
 
   const staffName = dashboard?.staff?.display_name || context?.staffProfile?.display_name || 'Staff'
+  const staffId = context?.staffProfile?.id
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-white">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 top-0 h-96 w-96 rounded-full bg-sky-50 blur-3xl" />
-        <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
-      </div>
+    <div className="relative isolate min-h-dvh overflow-hidden bg-white">
+      <AmbientBackground variant="sky" />
 
-      <div className="relative z-10 mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-10">
+      <div className="relative z-10 flex min-h-dvh flex-col lg:flex-row">
+        <StaffSchedulePanel staffId={staffId} />
+
+        <div className="relative z-10 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-10">
         <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-sky-600">Staff Portal</p>
@@ -140,6 +144,8 @@ export default function StaffDashboardHome() {
             </section>
           </>
         )}
+          </div>
+        </div>
       </div>
     </div>
   )
