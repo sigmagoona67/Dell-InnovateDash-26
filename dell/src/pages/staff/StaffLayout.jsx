@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { StaffAuthGate, StaffSessionProvider, useStaffSession } from '../../context/StaffSessionContext'
 import StaffDashboardHome from './StaffDashboardHome'
+import StaffMemberDetailPage from './StaffMemberDetailPage'
 import StaffProfileQuiz from './StaffProfileQuiz'
+import StaffTeamPage from './StaffTeamPage'
 import YouthDetailPage from './YouthDetailPage'
 
 function StaffQuizGate({ children }) {
@@ -33,6 +35,8 @@ export default function StaffLayout() {
         <StaffQuizGate>
           <Routes>
             <Route index element={<StaffDashboardHome />} />
+            <Route path="team" element={<StaffTeamPage />} />
+            <Route path="team/:staffId" element={<StaffMemberDetailPage />} />
             <Route path="profile-quiz" element={<StaffProfileQuiz />} />
             <Route path="youth/:youthId" element={<YouthDetailPage />} />
             <Route path="*" element={<Navigate to="/staff-dashboard" replace />} />

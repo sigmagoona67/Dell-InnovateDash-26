@@ -111,6 +111,12 @@ export default function StaffDashboardHome() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link
+              to="/staff-dashboard/team"
+              className="rounded-2xl border border-teal-100 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-100"
+            >
+              Care team
+            </Link>
+            <Link
               to="/staff-dashboard/profile-quiz"
               className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
             >
