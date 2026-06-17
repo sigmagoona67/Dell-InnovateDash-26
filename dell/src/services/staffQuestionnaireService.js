@@ -45,106 +45,92 @@ function asString(value) {
   return String(value).trim()
 }
 
-export function normalizeQuestionnaireRow(row) {
+export function normalizeStaffQuestionnaireRow(row) {
   if (!row) return null
 
   return {
     ...row,
     interests: asStringArray(row.interests),
-    personality: asPersonalityArray(row.personality),
+    personality: Array.isArray(row.personality) ? row.personality : [],
     preferred_communication_style: asStringArray(row.preferred_communication_style),
-    living_arrangement: asString(row.living_arrangement),
-    current_challenges: asStringArray(row.current_challenges),
-    coping_methods: asStringArray(row.coping_methods),
+    supporting_strengths: asStringArray(row.supporting_strengths),
     additional_notes: asString(row.additional_notes),
+    quiz_completed: Boolean(row.quiz_completed),
   }
 }
 
-export const EMPTY_QUESTIONNAIRE = {
+export const EMPTY_STAFF_QUESTIONNAIRE = {
   interests: [],
   personality: [],
   preferred_communication_style: [],
-  living_arrangement: '',
-  current_challenges: [],
-  coping_methods: [],
+  supporting_strengths: [],
   additional_notes: '',
+  quiz_completed: false,
 }
 
-function mapAnswersToPayload(answers) {
+function mapAnswersToPayload(answers, { quizCompleted = true } = {}) {
   return {
     interests: answers.interests || [],
     personality: Array.isArray(answers.personality) ? answers.personality : [],
     preferred_communication_style: answers.communication || [],
-    living_arrangement: answers.living || null,
-    current_challenges: answers.challenges || [],
-    coping_methods: answers.coping || [],
+    supporting_strengths: answers.strengths || [],
     additional_notes: answers.notes || '',
+    quiz_completed: quizCompleted,
   }
 }
 
-export async function saveQuestionnaire(youthId, answers) {
-  const payload = mapAnswersToPayload(answers)
+export async function getStaffQuestionnaire(staffId) {
+  const { data, error } = await db()
+    .from('staff_questionnaire')
+    .select('*')
+    .eq('staff_id', staffId)
+    .maybeSingle()
+
+  if (error) throw error
+  return normalizeStaffQuestionnaireRow(data)
+}
+
+export async function saveStaffQuestionnaire(staffId, answers, options = {}) {
+  const payload = mapAnswersToPayload(answers, options)
 
   const { data: existing, error: existingError } = await db()
-    .from('youth_questionnaire')
+    .from('staff_questionnaire')
     .select('id')
-    .eq('youth_id', youthId)
+    .eq('staff_id', staffId)
     .maybeSingle()
 
   if (existingError) throw existingError
 
   if (existing) {
     const { data, error } = await db()
-      .from('youth_questionnaire')
+      .from('staff_questionnaire')
       .update(payload)
-      .eq('youth_id', youthId)
+      .eq('staff_id', staffId)
       .select('*')
       .single()
     if (error) throw error
-    return data
+    return normalizeStaffQuestionnaireRow(data)
   }
 
   const { data, error } = await db()
-    .from('youth_questionnaire')
-    .insert([{ youth_id: youthId, ...payload }])
+    .from('staff_questionnaire')
+    .insert([{ staff_id: staffId, ...payload }])
     .select('*')
     .single()
 
   if (error) throw error
-  return data
+  return normalizeStaffQuestionnaireRow(data)
 }
 
-export async function completeOnboarding(youthId, answers, { preferredName } = {}) {
-  await saveQuestionnaire(youthId, answers)
-
-  const updatePayload = {
-    onboarding_completed: true,
-    assignment_status: 'pending',
-    assigned_staff_id: null,
-  }
-
-  if (preferredName?.trim()) {
-    updatePayload.preferred_name = preferredName.trim()
-  }
-
-  const { data, error } = await db()
-    .from('youth_profiles')
-    .update(updatePayload)
-    .eq('id', youthId)
-    .select('*')
-    .single()
-
-  if (error) throw error
-  return data
+export function summarizePersonality(personality = []) {
+  const items = asPersonalityArray(personality)
+  if (!items.length) return 'Personality profile not provided yet.'
+  if (items.length <= 2) return items.join(' · ')
+  return `${items.slice(0, 2).join(' · ')} · +${items.length - 2} more traits`
 }
 
-export async function getQuestionnaire(youthId) {
-  const { data, error } = await db()
-    .from('youth_questionnaire')
-    .select('*')
-    .eq('youth_id', youthId)
-    .maybeSingle()
-
-  if (error) throw error
-  return normalizeQuestionnaireRow(data)
+export function summarizeInterests(interests = []) {
+  const items = asStringArray(interests)
+  if (!items.length) return ''
+  return items.slice(0, 5).join(', ')
 }

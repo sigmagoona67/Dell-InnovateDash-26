@@ -109,9 +109,17 @@ export default function StaffDashboardHome() {
             <h1 className="mt-1 text-3xl font-bold text-slate-800">Staff Dashboard</h1>
             <p className="mt-2 text-slate-600">Welcome back, {staffName}. Manage assigned youth and review AI insights.</p>
           </div>
-          <Link to="/" className="text-sm font-medium text-sky-600 hover:text-sky-700">
-            Portal selection
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/staff-dashboard/profile-quiz"
+              className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+            >
+              {dashboard?.staffQuizCompleted ? 'Edit profile quiz' : 'Complete profile quiz'}
+            </Link>
+            <Link to="/" className="text-sm font-medium text-sky-600 hover:text-sky-700">
+              Portal selection
+            </Link>
+          </div>
         </header>
 
         {errorMessage && (
@@ -180,6 +188,7 @@ export default function StaffDashboardHome() {
                       youth={youth}
                       onAssign={handleAssign}
                       assigning={assigningId === youth.id}
+                      staffQuizCompleted={dashboard.staffQuizCompleted}
                     />
                   ))}
                 </div>

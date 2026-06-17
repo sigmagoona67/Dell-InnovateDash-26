@@ -28,6 +28,37 @@ Return ONLY valid JSON:
   "current_state": ["state1", "state2"]
 }`
 
+const STAFF_QUIZ_PROMPTS = {
+  staff_interests: `You help youth workers refine connection interests during staff onboarding.
+Given their free-text input, suggest 4-6 specific tags (1-4 words) for topics/hobbies they use to connect with young people.
+Do not repeat selected or previousSuggestions.
+Return ONLY valid JSON: { "suggestions": ["tag1", "tag2"] }`,
+  staff_communication: `You help youth workers describe their communication approach with young people.
+Suggest 4-6 specific communication style tags (2-6 words each).
+Do not repeat selected or previousSuggestions.
+Return ONLY valid JSON: { "suggestions": ["tag1", "tag2"] }`,
+  staff_strengths: `You help youth workers identify their supporting strengths when working with young people.
+Suggest 4-6 specific strength tags (2-6 words each).
+Do not repeat selected or previousSuggestions.
+Return ONLY valid JSON: { "suggestions": ["tag1", "tag2"] }`,
+}
+
+const COMPATIBILITY_PROMPT = `You are an AI matching assistant for a youth mental wellness platform.
+Compare a youth worker's profile quiz with a youth's onboarding questionnaire.
+Score how well they may work together from 0-100 based on:
+- shared interests and connection points
+- personality complement and alignment
+- communication style fit (what youth wants vs how staff communicates)
+- staff strengths relative to youth challenges
+
+Be realistic and humane. Never claim certainty. Return ONLY valid JSON:
+{
+  "score": 0,
+  "summary": "2-3 sentence explanation of the match",
+  "matchPoints": ["point1", "point2"],
+  "considerations": ["consideration1"]
+}`
+
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -58,6 +89,17 @@ async function getStaffContext(client) {
   if (!profile || profile.role !== 'staff') throw new Error('Only staff accounts can use this function')
 
   return { user: userData.user, profile }
+}
+
+async function getStaffQuestionnaire(client, staffId) {
+  const { data, error } = await client.database
+    .from('staff_questionnaire')
+    .select('*')
+    .eq('staff_id', staffId)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
 }
 
 async function callOpenRouter(messages) {
@@ -113,8 +155,74 @@ export default async function handler(req) {
 
   try {
     const client = getClient(req)
-    await getStaffContext(client)
+    const staffCtx = await getStaffContext(client)
     const body = await req.json()
+
+    if (body.action === 'suggestStaffQuizOptions') {
+      const { category, input, selected = [], previousSuggestions = [] } = body
+      if (!input?.trim()) return jsonResponse({ error: 'Input is required' }, 400)
+      if (!STAFF_QUIZ_PROMPTS[category]) return jsonResponse({ error: 'Invalid category' }, 400)
+
+      const parsed = await callOpenRouter([
+        { role: 'system', content: STAFF_QUIZ_PROMPTS[category] },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            input: input.trim(),
+            selected,
+            previousSuggestions,
+          }),
+        },
+      ])
+
+      const rawSuggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : []
+      const exclude = new Set(
+        [...selected, ...previousSuggestions].map((item) => String(item).toLowerCase()),
+      )
+      const suggestions = rawSuggestions
+        .map((item) => String(item).trim())
+        .filter(Boolean)
+        .filter((item) => !exclude.has(item.toLowerCase()))
+        .slice(0, 6)
+
+      return jsonResponse({ suggestions })
+    }
+
+    if (body.action === 'compatibilityScore') {
+      const { youthQuestionnaire, youthName = 'Youth' } = body
+      if (!youthQuestionnaire) return jsonResponse({ error: 'Youth questionnaire is required' }, 400)
+
+      const staffQuestionnaire = await getStaffQuestionnaire(client, staffCtx.profile.id)
+      if (!staffQuestionnaire?.quiz_completed) {
+        return jsonResponse({ error: 'Complete your staff profile quiz first' }, 400)
+      }
+
+      const parsed = await callOpenRouter([
+        { role: 'system', content: COMPATIBILITY_PROMPT },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            youthName,
+            staffProfile: {
+              interests: staffQuestionnaire.interests,
+              personality: staffQuestionnaire.personality,
+              preferred_communication_style: staffQuestionnaire.preferred_communication_style,
+              supporting_strengths: staffQuestionnaire.supporting_strengths,
+              additional_notes: staffQuestionnaire.additional_notes,
+            },
+            youthProfile: youthQuestionnaire,
+          }),
+        },
+      ])
+
+      const score = Math.max(0, Math.min(100, Number(parsed?.score) || 0))
+      return jsonResponse({
+        score,
+        summary: parsed?.summary || 'Compatibility assessed based on profile overlap.',
+        matchPoints: Array.isArray(parsed?.matchPoints) ? parsed.matchPoints : [],
+        considerations: Array.isArray(parsed?.considerations) ? parsed.considerations : [],
+      })
+    }
 
     if (body.action !== 'generateOfflineSummary') {
       return jsonResponse({ error: 'Unknown action' }, 400)

@@ -98,6 +98,61 @@ async function getYouthContext(client) {
   }
 }
 
+async function callOpenRouterJson(messages) {
+  const apiKey = Deno.env.get('OPENROUTER_API_KEY')
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY is not configured')
+
+  let lastError = null
+  for (const model of MODELS) {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.5,
+          response_format: { type: 'json_object' },
+        }),
+      })
+
+      if (!response.ok) {
+        lastError = new Error(`OpenRouter ${model}: ${response.status}`)
+        continue
+      }
+
+      const payload = await response.json()
+      const content = payload?.choices?.[0]?.message?.content
+      if (!content) {
+        lastError = new Error(`OpenRouter ${model}: empty response`)
+        continue
+      }
+
+      return JSON.parse(content)
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError || new Error('All AI models failed')
+}
+
+const ONBOARDING_PROMPTS = {
+  interests: `You help youths refine their interests during onboarding for a youth mental wellness app.
+Given their free-text input, suggest 4-6 specific, concise interest tags (1-4 words each) they might identify with.
+Do not repeat items from selected or previousSuggestions.
+Keep suggestions age-appropriate, positive, and specific (e.g. "Basketball" not just "Sports").
+Return ONLY valid JSON: { "suggestions": ["tag1", "tag2"] }`,
+  communication: `You help youths identify preferred communication styles for support from youth workers.
+Given their free-text description, suggest 4-6 specific communication preference tags (2-6 words each).
+Do not repeat items from selected or previousSuggestions.
+Examples: "Patient listener", "Gentle encouragement", "Practical advice", "Light humour".
+Return ONLY valid JSON: { "suggestions": ["tag1", "tag2"] }`,
+}
+
 async function callOpenRouter(messages) {
   const apiKey = Deno.env.get('OPENROUTER_API_KEY')
   if (!apiKey) throw new Error('OPENROUTER_API_KEY is not configured')
@@ -227,6 +282,36 @@ export default async function handler(req) {
       ]
       const reply = greetings[Math.floor(Math.random() * greetings.length)]
       return jsonResponse({ reply })
+    }
+
+    if (action === 'suggestOnboardingOptions') {
+      const { category, input, selected = [], previousSuggestions = [] } = body
+      if (!input?.trim()) return jsonResponse({ error: 'Input is required' }, 400)
+      if (!ONBOARDING_PROMPTS[category]) return jsonResponse({ error: 'Invalid category' }, 400)
+
+      const parsed = await callOpenRouterJson([
+        { role: 'system', content: ONBOARDING_PROMPTS[category] },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            input: input.trim(),
+            selected,
+            previousSuggestions,
+          }),
+        },
+      ])
+
+      const rawSuggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : []
+      const exclude = new Set(
+        [...selected, ...previousSuggestions].map((item) => String(item).toLowerCase()),
+      )
+      const suggestions = rawSuggestions
+        .map((item) => String(item).trim())
+        .filter(Boolean)
+        .filter((item) => !exclude.has(item.toLowerCase()))
+        .slice(0, 6)
+
+      return jsonResponse({ suggestions })
     }
 
     return jsonResponse({ error: 'Unknown action' }, 400)
