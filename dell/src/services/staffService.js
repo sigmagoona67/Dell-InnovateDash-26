@@ -187,14 +187,22 @@ async function buildYouthCards(staffId, youthRows) {
   )
 }
 
-function mapPendingYouthRow(row) {
+function mapPendingYouthRow(row, profileRow, questionnaire, sessions) {
+  const latestSession = (sessions || []).sort(
+    (a, b) => new Date(b.updated_at || b.session_date) - new Date(a.updated_at || a.session_date),
+  )[0]
+
   return {
     id: row.id,
-    name: row.preferred_name || 'Youth',
+    name: row.preferred_name || profileRow?.display_name || profileRow?.email?.split('@')[0] || 'Youth',
+    email: profileRow?.email || '',
+    onboardingCompleted: Boolean(row.onboarding_completed),
     assignmentStatus: row.assignment_status,
-    riskLevel: 'low',
-    aiSummary: 'No AI summary yet.',
-    challengesLabel: 'No challenges recorded yet.',
+    riskLevel: pickRiskLevel(sessions, null),
+    aiSummary: latestSession?.ai_summary || 'No AI summary yet.',
+    challengesLabel: row.onboarding_completed
+      ? (questionnaire?.current_challenges || []).join(', ') || 'Questionnaire completed'
+      : 'Questionnaire not completed yet.',
   }
 }
 
@@ -216,7 +224,57 @@ export async function loadPendingYouth() {
   }
 
   const rawRows = data || []
-  const pending = rawRows.map(mapPendingYouthRow)
+  if (!rawRows.length) {
+    return { pending: [], error: null, rawRows: [] }
+  }
+
+  const youthIds = rawRows.map((row) => row.id)
+  const userIds = rawRows.map((row) => row.user_id)
+
+  const [profiles, questionnaires, sessions] = await Promise.all([
+    db()
+      .from('profiles')
+      .select('id, display_name, email')
+      .in('id', userIds)
+      .then(({ data: profileRows, error: profileError }) => {
+        if (profileError) throw profileError
+        return profileRows
+      }),
+    db()
+      .from('youth_questionnaire')
+      .select('*')
+      .in('youth_id', youthIds)
+      .then(({ data: questionnaireRows, error: questionnaireError }) => {
+        if (questionnaireError) throw questionnaireError
+        return questionnaireRows
+      }),
+    db()
+      .from('ai_chat_sessions')
+      .select('*')
+      .in('youth_id', youthIds)
+      .then(({ data: sessionRows, error: sessionError }) => {
+        if (sessionError) throw sessionError
+        return sessionRows
+      }),
+  ])
+
+  const profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]))
+  const questionnaireMap = Object.fromEntries((questionnaires || []).map((q) => [q.youth_id, q]))
+  const sessionsMap = youthIds.reduce((acc, id) => {
+    acc[id] = (sessions || []).filter((s) => s.youth_id === id)
+    return acc
+  }, {})
+
+  const pending = sortByRisk(
+    rawRows.map((row) =>
+      mapPendingYouthRow(
+        row,
+        profileMap[row.user_id],
+        questionnaireMap[row.id],
+        sessionsMap[row.id],
+      ),
+    ),
+  )
 
   console.log('Pending youth mapped cards:', pending)
 
@@ -300,6 +358,19 @@ export async function assignYouthToMe(youthId) {
 
   if (workerError && !workerError.message?.includes('duplicate')) {
     throw workerError
+  }
+
+  try {
+    await db()
+      .from('risk_alerts')
+      .update({ assigned_staff_id: staffProfile.id })
+      .eq('youth_id', youthId)
+      .in('status', ['open', 'acknowledged'])
+      .is('assigned_staff_id', null)
+  } catch (alertError) {
+    if (!isMissingTableError(alertError)) {
+      console.warn('[staff] claim alerts skipped:', alertError.message)
+    }
   }
 
   return updated

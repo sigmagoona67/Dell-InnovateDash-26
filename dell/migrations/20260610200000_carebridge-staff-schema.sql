@@ -50,10 +50,12 @@ CREATE INDEX IF NOT EXISTS idx_youth_profiles_pending
   ON public.youth_profiles(assignment_status)
   WHERE assignment_status = 'pending';
 
+DROP TRIGGER IF EXISTS ai_dynamic_insights_updated_at ON public.ai_dynamic_insights;
 CREATE TRIGGER ai_dynamic_insights_updated_at
   BEFORE UPDATE ON public.ai_dynamic_insights
   FOR EACH ROW EXECUTE FUNCTION system.update_updated_at();
 
+DROP TRIGGER IF EXISTS offline_counselling_sessions_updated_at ON public.offline_counselling_sessions;
 CREATE TRIGGER offline_counselling_sessions_updated_at
   BEFORE UPDATE ON public.offline_counselling_sessions
   FOR EACH ROW EXECUTE FUNCTION system.update_updated_at();
@@ -111,6 +113,7 @@ ALTER TABLE public.offline_counselling_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.staff_youth_views ENABLE ROW LEVEL SECURITY;
 
 -- Staff read/update youth_profiles for assignment
+DROP POLICY IF EXISTS youth_profiles_staff_select ON public.youth_profiles;
 CREATE POLICY youth_profiles_staff_select ON public.youth_profiles
   FOR SELECT TO authenticated
   USING (
@@ -118,6 +121,7 @@ CREATE POLICY youth_profiles_staff_select ON public.youth_profiles
     OR user_id = public.current_profile_id()
   );
 
+DROP POLICY IF EXISTS youth_profiles_staff_assign ON public.youth_profiles;
 CREATE POLICY youth_profiles_staff_assign ON public.youth_profiles
   FOR UPDATE TO authenticated
   USING (
@@ -132,20 +136,24 @@ CREATE POLICY youth_profiles_staff_assign ON public.youth_profiles
   );
 
 -- Staff read youth questionnaire
+DROP POLICY IF EXISTS youth_questionnaire_staff_select ON public.youth_questionnaire;
 CREATE POLICY youth_questionnaire_staff_select ON public.youth_questionnaire
   FOR SELECT TO authenticated
   USING (public.staff_can_read_youth(youth_id));
 
 -- Staff read AI sessions/messages
+DROP POLICY IF EXISTS ai_chat_sessions_staff_select ON public.ai_chat_sessions;
 CREATE POLICY ai_chat_sessions_staff_select ON public.ai_chat_sessions
   FOR SELECT TO authenticated
   USING (public.staff_can_read_youth(youth_id));
 
+DROP POLICY IF EXISTS ai_messages_staff_select ON public.ai_messages;
 CREATE POLICY ai_messages_staff_select ON public.ai_messages
   FOR SELECT TO authenticated
   USING (public.staff_can_read_youth(youth_id));
 
 -- Staff read youth profile rows for names
+DROP POLICY IF EXISTS profiles_staff_select_youth ON public.profiles;
 CREATE POLICY profiles_staff_select_youth ON public.profiles
   FOR SELECT TO authenticated
   USING (
@@ -161,6 +169,7 @@ CREATE POLICY profiles_staff_select_youth ON public.profiles
   );
 
 -- assigned_workers staff policies
+DROP POLICY IF EXISTS assigned_workers_staff_select ON public.assigned_workers;
 CREATE POLICY assigned_workers_staff_select ON public.assigned_workers
   FOR SELECT TO authenticated
   USING (
@@ -168,29 +177,35 @@ CREATE POLICY assigned_workers_staff_select ON public.assigned_workers
     OR staff_id = public.current_staff_profile_id()
   );
 
+DROP POLICY IF EXISTS assigned_workers_staff_insert ON public.assigned_workers;
 CREATE POLICY assigned_workers_staff_insert ON public.assigned_workers
   FOR INSERT TO authenticated
   WITH CHECK (staff_id = public.current_staff_profile_id());
 
 -- ai_dynamic_insights
+DROP POLICY IF EXISTS ai_dynamic_insights_staff_select ON public.ai_dynamic_insights;
 CREATE POLICY ai_dynamic_insights_staff_select ON public.ai_dynamic_insights
   FOR SELECT TO authenticated
   USING (public.staff_can_read_youth(youth_id));
 
+DROP POLICY IF EXISTS ai_dynamic_insights_staff_insert ON public.ai_dynamic_insights;
 CREATE POLICY ai_dynamic_insights_staff_insert ON public.ai_dynamic_insights
   FOR INSERT TO authenticated
   WITH CHECK (public.staff_can_manage_youth(youth_id));
 
+DROP POLICY IF EXISTS ai_dynamic_insights_staff_update ON public.ai_dynamic_insights;
 CREATE POLICY ai_dynamic_insights_staff_update ON public.ai_dynamic_insights
   FOR UPDATE TO authenticated
   USING (public.staff_can_manage_youth(youth_id))
   WITH CHECK (public.staff_can_manage_youth(youth_id));
 
 -- offline_counselling_sessions
+DROP POLICY IF EXISTS offline_sessions_staff_select ON public.offline_counselling_sessions;
 CREATE POLICY offline_sessions_staff_select ON public.offline_counselling_sessions
   FOR SELECT TO authenticated
   USING (public.staff_can_read_youth(youth_id));
 
+DROP POLICY IF EXISTS offline_sessions_staff_insert ON public.offline_counselling_sessions;
 CREATE POLICY offline_sessions_staff_insert ON public.offline_counselling_sessions
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -198,6 +213,7 @@ CREATE POLICY offline_sessions_staff_insert ON public.offline_counselling_sessio
     AND public.staff_can_manage_youth(youth_id)
   );
 
+DROP POLICY IF EXISTS offline_sessions_staff_update ON public.offline_counselling_sessions;
 CREATE POLICY offline_sessions_staff_update ON public.offline_counselling_sessions
   FOR UPDATE TO authenticated
   USING (
@@ -210,14 +226,17 @@ CREATE POLICY offline_sessions_staff_update ON public.offline_counselling_sessio
   );
 
 -- staff_youth_views
+DROP POLICY IF EXISTS staff_youth_views_select ON public.staff_youth_views;
 CREATE POLICY staff_youth_views_select ON public.staff_youth_views
   FOR SELECT TO authenticated
   USING (staff_id = public.current_staff_profile_id());
 
+DROP POLICY IF EXISTS staff_youth_views_upsert ON public.staff_youth_views;
 CREATE POLICY staff_youth_views_upsert ON public.staff_youth_views
   FOR INSERT TO authenticated
   WITH CHECK (staff_id = public.current_staff_profile_id());
 
+DROP POLICY IF EXISTS staff_youth_views_update ON public.staff_youth_views;
 CREATE POLICY staff_youth_views_update ON public.staff_youth_views
   FOR UPDATE TO authenticated
   USING (staff_id = public.current_staff_profile_id())

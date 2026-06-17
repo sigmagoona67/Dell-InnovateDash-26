@@ -2,39 +2,53 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AssignedYouthCard from '../../components/staff/AssignedYouthCard'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
+import UrgentAlertsPanel from '../../components/staff/UrgentAlertsPanel'
 import { useStaffSession } from '../../context/StaffSessionContext'
+import {
+  acknowledgeRiskAlert,
+  getOpenRiskAlerts,
+  resolveRiskAlert,
+} from '../../services/riskAlertsService'
 import { assignYouthToMe, getStaffDashboard } from '../../services/staffService'
 
 export default function StaffDashboardHome() {
   const { context } = useStaffSession()
   const [dashboard, setDashboard] = useState(null)
+  const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [assigningId, setAssigningId] = useState('')
+  const [alertBusyId, setAlertBusyId] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [notice, setNotice] = useState('')
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true)
+  const loadDashboard = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     setErrorMessage('')
     console.log('StaffDashboard: loading dashboard...')
     try {
-      const data = await getStaffDashboard()
+      const [data, openAlerts] = await Promise.all([getStaffDashboard(), getOpenRiskAlerts()])
       console.log('StaffDashboard: dashboard loaded', {
         pendingCount: data.pending?.length ?? 0,
         pendingDebug: data.pendingDebug,
         pending: data.pending,
+        alertCount: openAlerts.length,
       })
       setDashboard(data)
+      setAlerts(openAlerts)
     } catch (error) {
       console.log('StaffDashboard: dashboard error:', error)
       setErrorMessage(error.message || 'Unable to load dashboard.')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     loadDashboard()
+    const intervalId = window.setInterval(() => {
+      loadDashboard({ silent: true })
+    }, 30000)
+    return () => window.clearInterval(intervalId)
   }, [loadDashboard])
 
   async function handleAssign(youthId) {
@@ -43,11 +57,39 @@ export default function StaffDashboardHome() {
     try {
       await assignYouthToMe(youthId)
       setNotice('Youth assigned successfully. Dashboard refreshed.')
-      await loadDashboard()
+      await loadDashboard({ silent: true })
     } catch (error) {
       setErrorMessage(error.message || 'Unable to assign youth.')
     } finally {
       setAssigningId('')
+    }
+  }
+
+  async function handleAcknowledge(alertId) {
+    setAlertBusyId(alertId)
+    setNotice('')
+    try {
+      await acknowledgeRiskAlert(alertId)
+      setNotice('Alert acknowledged. Follow up when you are ready.')
+      await loadDashboard({ silent: true })
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to acknowledge alert.')
+    } finally {
+      setAlertBusyId('')
+    }
+  }
+
+  async function handleResolve(alertId) {
+    setAlertBusyId(alertId)
+    setNotice('')
+    try {
+      await resolveRiskAlert(alertId)
+      setNotice('Alert marked resolved.')
+      await loadDashboard({ silent: true })
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to resolve alert.')
+    } finally {
+      setAlertBusyId('')
     }
   }
 
@@ -88,6 +130,15 @@ export default function StaffDashboardHome() {
           <p className="text-slate-500">Loading dashboard…</p>
         ) : (
           <>
+            <UrgentAlertsPanel
+              alerts={alerts}
+              onAcknowledge={handleAcknowledge}
+              onResolve={handleResolve}
+              busyId={alertBusyId}
+              onAssign={handleAssign}
+              assigningId={assigningId}
+            />
+
             <section className="mb-10">
               <h2 className="mb-4 text-xl font-bold text-slate-800">Assigned Youth</h2>
               {dashboard?.assigned?.length ? (
