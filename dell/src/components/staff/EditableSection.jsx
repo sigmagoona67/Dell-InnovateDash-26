@@ -49,20 +49,18 @@ export default function EditableSection({
     setEditing(false)
   }
 
+  const showActions = !editing && (staffEdited || !disabled)
+
   return (
     <div className={`relative ${className}`}>
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {title && <h4 className="text-sm font-bold text-slate-800">{title}</h4>}
-          {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {staffEdited && !editing && (
+      {showActions && (
+        <div className="absolute right-0 top-0 flex items-center gap-2">
+          {staffEdited && (
             <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-100">
               Staff edited
             </span>
           )}
-          {!editing && !disabled && (
+          {!disabled && (
             <button
               type="button"
               onClick={() => setEditing(true)}
@@ -73,10 +71,15 @@ export default function EditableSection({
             </button>
           )}
         </div>
-      </div>
+      )}
+
+      {title && (
+        <h4 className={`text-sm font-bold text-slate-800 ${showActions ? 'pr-24' : ''}`}>{title}</h4>
+      )}
+      {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
 
       {editing ? (
-        <div className="space-y-3">
+        <div className="mt-3 space-y-3">
           {mode === 'textarea' ? (
             <textarea
               value={draft}
@@ -117,7 +120,7 @@ export default function EditableSection({
           </div>
         </div>
       ) : (
-        children
+        <div className="mt-3 flex flex-wrap gap-2">{children}</div>
       )}
     </div>
   )

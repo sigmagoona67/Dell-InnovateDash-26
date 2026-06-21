@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { hasDynamicProfileData, profileDynamicFieldsForDisplay } from '../../lib/dynamicProfile'
+import { hasDynamicProfileData, isYouthProfileFieldVisible, profileDynamicFieldsForDisplay } from '../../lib/dynamicProfile'
 import { requireInsforge } from '../../lib/insforgeClient'
 import { loadYouthInsights } from '../../services/insightsFallbackService'
 import { regenerateYouthProfileInsights } from '../../services/staffAiService'
@@ -32,13 +32,34 @@ const YOUTH_PROFILE_VIEWS = [
 
 const PROFILE_FIELD_DEFS = [
   { key: 'interests', title: 'Interests' },
+  { key: 'personality', title: 'Personality' },
   {
     key: 'preferred_communication_style',
     title: 'Preferred Communication Style',
     hint: 'How the youth prefers to be approached',
   },
+  { key: 'living_arrangement', title: 'Family Situation', isSingle: true },
   { key: 'current_challenges', title: 'Current Challenges' },
+  { key: 'coping_methods', title: 'Coping Methods' },
 ]
+
+function ProfileInfoCard({ title, children }) {
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+      <h4 className="text-sm font-bold text-slate-800">{title}</h4>
+      <div className="mt-3 flex flex-wrap gap-2">{children}</div>
+    </section>
+  )
+}
+
+function InfoChip({ label, value }) {
+  if (!value) return null
+  return (
+    <span className="rounded-2xl bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-800 ring-1 ring-sky-200">
+      {label}: {value}
+    </span>
+  )
+}
 
 function BasicInformationSection({ questionnaire }) {
   if (!questionnaire) return null
@@ -49,49 +70,35 @@ function BasicInformationSection({ questionnaire }) {
     questionnaire.country ||
     (questionnaire.languages || []).length
 
-  if (!hasBasic) return null
+  const hasWorkerPrefs =
+    questionnaire.preferred_worker_gender || questionnaire.preferred_worker_age_range
 
-  const rows = [
-    { label: 'Age', value: questionnaire.age != null ? String(questionnaire.age) : null },
-    { label: 'Gender', value: questionnaire.gender },
-    { label: 'Country', value: questionnaire.country },
-    {
-      label: 'Languages spoken',
-      value: (questionnaire.languages || []).join(', ') || null,
-    },
-  ]
+  if (!hasBasic && !hasWorkerPrefs) return null
+
+  const languages = (questionnaire.languages || []).filter(Boolean)
 
   return (
-    <div className="mb-6 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 lg:col-span-2">
-      <h4 className="mb-3 text-base font-bold text-slate-800">Basic Information</h4>
-      <div className="space-y-2">
-        {rows.map((row) => (
-          <div key={row.label} className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-sm font-semibold text-blue-500">{row.label}</span>
-            <span className="text-sm text-slate-800">{row.value || '—'}</span>
-          </div>
-        ))}
-      </div>
-      {(questionnaire.preferred_worker_gender || questionnaire.preferred_worker_age_range) && (
-        <div className="mt-4 border-t border-slate-200 pt-4">
-          <p className="mb-2 text-sm font-semibold text-slate-700">Youth Worker Preference</p>
-          <div className="space-y-2">
-            {questionnaire.preferred_worker_gender && (
-              <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm font-semibold text-blue-500">Preferred gender</span>
-                <span className="text-sm text-slate-800">{questionnaire.preferred_worker_gender}</span>
-              </div>
-            )}
-            {questionnaire.preferred_worker_age_range && (
-              <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm font-semibold text-blue-500">Preferred age range</span>
-                <span className="text-sm text-slate-800">{questionnaire.preferred_worker_age_range}</span>
-              </div>
-            )}
-          </div>
-        </div>
+    <>
+      {hasBasic && (
+        <ProfileInfoCard title="Basic Information">
+          {questionnaire.age != null && <InfoChip label="Age" value={String(questionnaire.age)} />}
+          {questionnaire.gender && <InfoChip label="Gender" value={questionnaire.gender} />}
+          {questionnaire.country && <InfoChip label="Country" value={questionnaire.country} />}
+          {languages.length > 0 &&
+            languages.map((lang) => <InfoChip key={lang} label="Language" value={lang} />)}
+        </ProfileInfoCard>
       )}
-    </div>
+      {hasWorkerPrefs && (
+        <ProfileInfoCard title="Youth Worker Preference">
+          {questionnaire.preferred_worker_gender && (
+            <InfoChip label="Preferred gender" value={questionnaire.preferred_worker_gender} />
+          )}
+          {questionnaire.preferred_worker_age_range && (
+            <InfoChip label="Preferred age range" value={questionnaire.preferred_worker_age_range} />
+          )}
+        </ProfileInfoCard>
+      )}
+    </>
   )
 }
 
@@ -382,11 +389,11 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
   const staticFields = useMemo(
     () => ({
       interests: questionnaire?.interests || [],
-      personality: questionnaire?.personality || [],
+      personality: [],
       preferred_communication_style: questionnaire?.preferred_communication_style || [],
-      living_arrangement: questionnaire?.living_arrangement || '',
+      living_arrangement: '',
       current_challenges: questionnaire?.current_challenges || [],
-      coping_methods: questionnaire?.coping_methods || [],
+      coping_methods: [],
     }),
     [questionnaire],
   )
@@ -414,6 +421,7 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
         questionnaire?.country ||
         (questionnaire?.languages || []).length
       const hasFields = PROFILE_FIELD_DEFS.some((field) => {
+        if (!isYouthProfileFieldVisible(field.key, 'static')) return false
         const value = staticFields[field.key]
         return field.isSingle ? Boolean(value) : (value || []).length > 0
       })
@@ -426,7 +434,7 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
     youthProfileView === 'static'
       ? !loadingQuestionnaire
       : youthProfileView === 'dynamic'
-        ? !loadingInsights && hasDynamicData
+        ? !loadingInsights
         : (!loadingInsights && hasDynamicData) || !loadingQuestionnaire
 
   const latestChange = insights.latest_change?.trim()
@@ -683,7 +691,7 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
           <p className="text-sm text-slate-500">Loading AI-discovered profile…</p>
         )}
 
-        {!loadingInsights && youthProfileView === 'dynamic' && !hasDynamicData && (
+        {!loadingInsights && youthProfileView === 'dynamic' && !hasDynamicData && !showProfileGrid && (
           <p className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-sm text-violet-900">
             No dynamic profile items yet. They will appear after the youth chats with AI or staff uploads an offline
             session.
@@ -695,7 +703,7 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
             {youthProfileView !== 'dynamic' && (
               <BasicInformationSection questionnaire={questionnaire} />
             )}
-            {PROFILE_FIELD_DEFS.map((field) => {
+            {PROFILE_FIELD_DEFS.filter((field) => isYouthProfileFieldVisible(field.key, youthProfileView)).map((field) => {
               const staticValue = staticFields[field.key]
               const dynamicValue = dynamicFields[field.key]
               const staticItems = field.isSingle
@@ -715,8 +723,8 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
                 return (
                   <div key={field.key} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
                     <EditableSection
-                      title={`${field.title} (Dynamic)`}
-                      hint={field.hint || 'AI-discovered — edits are saved and used in future AI analysis'}
+                      title={field.title}
+                      hint={field.hint}
                       value={field.isSingle ? dynamicValue || '' : formatTagsForEdit(dynamicItems)}
                       mode={field.isSingle ? 'textarea' : 'tags'}
                       staffEdited={Boolean(staffEdited[metaKey])}
@@ -728,27 +736,25 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
                         )
                       }
                     >
-                      <div className="flex flex-wrap gap-2">
-                        {staticItems.map((item) => (
-                          <span
-                            key={`s-${item}`}
-                            className="rounded-2xl bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-800 ring-1 ring-sky-200"
-                          >
-                            {item}
-                          </span>
-                        ))}
-                        {dynamicItems.map((item) => (
-                          <span
-                            key={`d-${item}`}
-                            className="rounded-2xl bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-800 ring-1 ring-violet-200"
-                          >
-                            {item}
-                          </span>
-                        ))}
-                        {!staticItems.length && !dynamicItems.length && (
-                          <span className="text-sm text-slate-400">{EMPTY}</span>
-                        )}
-                      </div>
+                      {staticItems.map((item) => (
+                        <span
+                          key={`s-${item}`}
+                          className="rounded-2xl bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-800 ring-1 ring-sky-200"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                      {dynamicItems.map((item) => (
+                        <span
+                          key={`d-${item}`}
+                          className="rounded-2xl bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-800 ring-1 ring-violet-200"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                      {!staticItems.length && !dynamicItems.length && (
+                        <span className="text-sm text-slate-400">{EMPTY}</span>
+                      )}
                     </EditableSection>
                   </div>
                 )

@@ -1,5 +1,5 @@
 import { requireInsforge } from '../lib/insforgeClient'
-import { calculateAgeFromDob } from '../lib/onboardingData'
+import { calculateAgeFromDob, normalizeIsoDate } from '../lib/onboardingData'
 import {
   CURRENT_YOUTH_ONBOARDING_VERSION,
   isYouthOnboardingComplete,
@@ -45,6 +45,7 @@ export function normalizeQuestionnaireRow(row) {
     languages: asStringArray(row.languages),
     gender: asString(row.gender),
     country: asString(row.country),
+    date_of_birth: normalizeIsoDate(row.date_of_birth) || null,
     preferred_worker_gender: asString(row.preferred_worker_gender),
     preferred_worker_age_range: asString(row.preferred_worker_age_range),
     age: row.age != null ? Number(row.age) : calculateAgeFromDob(row.date_of_birth),
@@ -72,7 +73,7 @@ function mapAnswersToPayload(answers) {
   const age = calculateAgeFromDob(answers.dateOfBirth)
 
   return {
-    date_of_birth: answers.dateOfBirth || null,
+    date_of_birth: normalizeIsoDate(answers.dateOfBirth) || null,
     age,
     gender: answers.gender || null,
     country: answers.country || null,

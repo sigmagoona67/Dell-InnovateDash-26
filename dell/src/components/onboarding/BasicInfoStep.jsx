@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   COMMON_LANGUAGES,
   COUNTRIES,
@@ -7,6 +7,8 @@ import {
   WORKER_GENDER_PREFS,
 } from '../../lib/onboardingData'
 import { ChipButton } from './OnboardingShell'
+import DateOfBirthField from './DateOfBirthField'
+import { isDobAtLeastMinAge } from '../../lib/onboardingData'
 
 function FieldLabel({ children }) {
   return <label className="mb-2 block text-sm font-semibold text-slate-700">{children}</label>
@@ -15,6 +17,10 @@ function FieldLabel({ children }) {
 function SearchableSelect({ value, options, onChange, placeholder }) {
   const [query, setQuery] = useState(value || '')
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    setQuery(value || '')
+  }, [value])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -62,7 +68,7 @@ function SearchableSelect({ value, options, onChange, placeholder }) {
   )
 }
 
-export default function BasicInfoStep({ form, onChange, showWorkerPrefs = false }) {
+export default function BasicInfoStep({ form, onChange, showWorkerPrefs = false, minAge = null }) {
   function setField(key, value) {
     onChange({ ...form, [key]: value })
   }
@@ -77,13 +83,14 @@ export default function BasicInfoStep({ form, onChange, showWorkerPrefs = false 
     <div className="space-y-6">
       <div>
         <FieldLabel>Date of Birth</FieldLabel>
-        <input
-          type="date"
+        <DateOfBirthField
           value={form.dateOfBirth || ''}
-          max={new Date().toISOString().slice(0, 10)}
-          onChange={(e) => setField('dateOfBirth', e.target.value)}
-          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-800 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
+          onChange={(dateOfBirth) => setField('dateOfBirth', dateOfBirth)}
+          minAge={minAge}
         />
+        {minAge != null && (
+          <p className="mt-2 text-sm text-slate-500">You must be at least {minAge} years old.</p>
+        )}
       </div>
 
       <div>
@@ -161,8 +168,9 @@ export default function BasicInfoStep({ form, onChange, showWorkerPrefs = false 
   )
 }
 
-export function isBasicInfoComplete(form, { requireWorkerPrefs = false } = {}) {
+export function isBasicInfoComplete(form, { requireWorkerPrefs = false, minAge = null } = {}) {
   if (!form.dateOfBirth || !form.gender || !form.country) return false
+  if (!isDobAtLeastMinAge(form.dateOfBirth, minAge)) return false
   if (!(form.languages || []).length) return false
   if (requireWorkerPrefs) {
     if (!form.preferredWorkerGender || !form.preferredWorkerAgeRange) return false

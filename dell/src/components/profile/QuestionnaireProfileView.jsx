@@ -1,27 +1,43 @@
-import { ProfileChip } from '../onboarding/OnboardingShell'
+import { calculateAgeFromDob } from '../../lib/onboardingData'
+import { resolveStaffProfileAge } from '../../lib/onboardingRequirements'
+import { YOUTH_PROFILE_LABELS } from '../../lib/profileLabels'
 
-function BasicInfoRow({ label, value }) {
+function ProfileInfoCard({ title, children }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
-      <span className="text-sm font-semibold text-blue-500">{label}</span>
-      <span className="text-sm font-medium text-slate-800">{value || '—'}</span>
-    </div>
+    <section className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+      <h4 className="text-sm font-bold text-slate-800">{title}</h4>
+      <div className="mt-3 flex flex-wrap gap-2">{children}</div>
+    </section>
   )
 }
 
-function ChipSection({ title, items = [] }) {
+function InfoChip({ label, value }) {
+  if (!value) return null
   return (
-    <section className="rounded-2xl border border-slate-100 bg-white p-5">
-      <h3 className="mb-3 text-base font-semibold text-slate-800">{title}</h3>
-      {items.length ? (
-        <div className="flex flex-wrap gap-2">
-          {items.map((item) => (
-            <ProfileChip key={item} label={item} />
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-slate-400">Not provided yet</p>
-      )}
+    <span className="rounded-2xl bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-800 ring-1 ring-sky-200">
+      {label}: {value}
+    </span>
+  )
+}
+
+function ChipSection({ title, items = [], emptyText = 'Not provided yet' }) {
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+      <h4 className="text-sm font-bold text-slate-800">{title}</h4>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {items.length ? (
+          items.map((item) => (
+            <span
+              key={item}
+              className="rounded-2xl bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-800 ring-1 ring-sky-200"
+            >
+              {item}
+            </span>
+          ))
+        ) : (
+          <span className="text-sm text-slate-400">{emptyText}</span>
+        )}
+      </div>
     </section>
   )
 }
@@ -30,31 +46,35 @@ export default function QuestionnaireProfileView({
   basicInfo,
   interests = [],
   communicationStyle = [],
-  communicationTitle = 'Preferred Communication Style',
+  communicationTitle = YOUTH_PROFILE_LABELS.communicationTitle,
   challenges = [],
-  challengesTitle = 'Current Challenges',
+  challengesTitle = YOUTH_PROFILE_LABELS.challengesTitle,
   workerPrefs = null,
 }) {
+  const languages = (basicInfo?.languages || []).filter(Boolean)
+  const hasBasic =
+    basicInfo &&
+    (basicInfo.age != null || basicInfo.gender || basicInfo.country || languages.length > 0)
+
   return (
-    <div className="space-y-5">
-      <section className="rounded-2xl border border-slate-100 bg-white p-5">
-        <h3 className="mb-4 text-lg font-bold text-slate-800">Basic Information</h3>
-        <div className="rounded-2xl bg-slate-50/80 px-4">
-          <BasicInfoRow label="Age" value={basicInfo?.age != null ? String(basicInfo.age) : null} />
-          <BasicInfoRow label="Gender" value={basicInfo?.gender} />
-          <BasicInfoRow label="Country" value={basicInfo?.country} />
-          <BasicInfoRow
-            label="Languages spoken"
-            value={(basicInfo?.languages || []).join(', ') || null}
-          />
-          {workerPrefs && (
-            <>
-              <BasicInfoRow label="Preferred worker gender" value={workerPrefs.gender} />
-              <BasicInfoRow label="Preferred worker age range" value={workerPrefs.ageRange} />
-            </>
-          )}
-        </div>
-      </section>
+    <div className="grid gap-4 lg:grid-cols-2">
+      {hasBasic && (
+        <ProfileInfoCard title="Basic Information">
+          {basicInfo.age != null && <InfoChip label="Age" value={String(basicInfo.age)} />}
+          {basicInfo.gender && <InfoChip label="Gender" value={basicInfo.gender} />}
+          {basicInfo.country && <InfoChip label="Country" value={basicInfo.country} />}
+          {languages.map((lang) => (
+            <InfoChip key={lang} label="Language" value={lang} />
+          ))}
+        </ProfileInfoCard>
+      )}
+
+      {workerPrefs && (
+        <ProfileInfoCard title="Youth Worker Preference">
+          {workerPrefs.gender && <InfoChip label="Preferred gender" value={workerPrefs.gender} />}
+          {workerPrefs.ageRange && <InfoChip label="Preferred age range" value={workerPrefs.ageRange} />}
+        </ProfileInfoCard>
+      )}
 
       <ChipSection title="Interests" items={interests} />
       <ChipSection title={communicationTitle} items={communicationStyle} />
@@ -65,9 +85,13 @@ export default function QuestionnaireProfileView({
 
 export function mapYouthQuestionnaireToProfile(questionnaire) {
   if (!questionnaire) return null
+  const age =
+    questionnaire.age != null
+      ? Number(questionnaire.age)
+      : calculateAgeFromDob(questionnaire.date_of_birth)
   return {
     basicInfo: {
-      age: questionnaire.age,
+      age: age != null && !Number.isNaN(age) ? age : null,
       gender: questionnaire.gender,
       country: questionnaire.country,
       languages: questionnaire.languages || [],
@@ -88,7 +112,7 @@ export function mapStaffQuestionnaireToProfile(questionnaire) {
   if (!questionnaire) return null
   return {
     basicInfo: {
-      age: questionnaire.age,
+      age: resolveStaffProfileAge(questionnaire),
       gender: questionnaire.gender,
       country: questionnaire.country,
       languages: questionnaire.languages || [],

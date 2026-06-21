@@ -1,3 +1,6 @@
+import { calculateAgeFromDob, isDobAtLeastMinAge, normalizeIsoDate } from './onboardingData'
+import { STAFF_MIN_AGE } from './profileLabels'
+
 /** Bump when onboarding fields or steps change; users below this version must re-complete. */
 export const CURRENT_YOUTH_ONBOARDING_VERSION = 2
 export const CURRENT_STAFF_ONBOARDING_VERSION = 2
@@ -21,7 +24,7 @@ export function youthQuestionnaireToOnboardingAnswers(questionnaire) {
 
   return {
     basic: {
-      dateOfBirth: questionnaire.date_of_birth || '',
+      dateOfBirth: normalizeIsoDate(questionnaire.date_of_birth),
       gender: questionnaire.gender || '',
       country: questionnaire.country || '',
       languages: questionnaire.languages || [],
@@ -34,12 +37,34 @@ export function youthQuestionnaireToOnboardingAnswers(questionnaire) {
   }
 }
 
+function hasStaffBasicInfo(questionnaire) {
+  if (!questionnaire) return false
+  const dob = normalizeIsoDate(questionnaire.date_of_birth)
+  if (!isDobAtLeastMinAge(dob, STAFF_MIN_AGE)) return false
+  if (!String(questionnaire.gender || '').trim()) return false
+  if (!String(questionnaire.country || '').trim()) return false
+  return hasMinItems(questionnaire.languages)
+}
+
+/** Age shown on staff profiles (youth + staff views). Only valid DOB at or above STAFF_MIN_AGE. */
+export function resolveStaffProfileAge(questionnaire) {
+  if (!questionnaire) return null
+  const dob = normalizeIsoDate(questionnaire.date_of_birth)
+  if (!isDobAtLeastMinAge(dob, STAFF_MIN_AGE)) return null
+  return calculateAgeFromDob(dob)
+}
+
 export function staffQuestionnaireToOnboardingAnswers(questionnaire) {
   if (!questionnaire) return null
 
+  let dateOfBirth = normalizeIsoDate(questionnaire.date_of_birth)
+  if (!isDobAtLeastMinAge(dateOfBirth, STAFF_MIN_AGE)) {
+    dateOfBirth = ''
+  }
+
   return {
     basic: {
-      dateOfBirth: questionnaire.date_of_birth || '',
+      dateOfBirth,
       gender: questionnaire.gender || '',
       country: questionnaire.country || '',
       languages: questionnaire.languages || [],
@@ -76,7 +101,7 @@ export function isStaffQuestionnaireCurrent(questionnaire) {
   const expertise = questionnaire.areas_of_expertise || questionnaire.supporting_strengths
 
   return (
-    hasBasicInfo(questionnaire) &&
+    hasStaffBasicInfo(questionnaire) &&
     hasMinItems(supportStyle) &&
     hasMinItems(questionnaire.interests) &&
     hasMinItems(expertise)

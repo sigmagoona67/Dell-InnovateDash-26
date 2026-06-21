@@ -1,12 +1,11 @@
 const CHIP_STYLES = {
-  static: 'border border-blue-300 bg-blue-100 text-blue-700',
+  static: 'bg-sky-50 text-sky-800 ring-sky-200',
   dynamic: 'bg-violet-50 text-violet-800 ring-violet-200',
 }
 
 function TagChip({ label, source }) {
-  const rounded = source === 'static' ? 'rounded-full px-3 py-1 text-sm' : 'rounded-2xl px-3 py-1.5 text-sm font-medium ring-1'
   return (
-    <span className={`font-medium ${rounded} ${CHIP_STYLES[source]}`}>
+    <span className={`rounded-2xl px-3 py-1.5 text-sm font-medium ring-1 ${CHIP_STYLES[source]}`}>
       {label}
     </span>
   )
@@ -16,7 +15,7 @@ export function YouthProfileLegend() {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-4 text-xs font-medium text-slate-600">
       <span className="inline-flex items-center gap-2">
-        <span className="h-2.5 w-2.5 rounded-full bg-blue-400" />
+        <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />
         Static · onboarding
       </span>
       <span className="inline-flex items-center gap-2">

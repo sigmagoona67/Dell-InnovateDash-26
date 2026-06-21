@@ -1,177 +1,34 @@
-import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import BasicInfoStep, { isBasicInfoComplete } from '../../components/onboarding/BasicInfoStep'
-import ChallengesStep, { hasMinSelection as hasChallengeSelection } from '../../components/onboarding/ChallengesStep'
-import InterestsStep, { hasMinSelection as hasInterestSelection } from '../../components/onboarding/InterestsStep'
-import { OnboardingShell } from '../../components/onboarding/OnboardingShell'
-import QualitiesStep, { hasMinSelection as hasQualitySelection } from '../../components/onboarding/QualitiesStep'
+import YouthQuestionnaireForm from '../../components/youth/YouthQuestionnaireForm'
 import { useYouthSession } from '../../context/YouthSessionContext'
-import { YOUTH_QUALITIES } from '../../lib/onboardingData'
-import { youthQuestionnaireToOnboardingAnswers } from '../../lib/onboardingRequirements'
 import { completeOnboarding } from '../../services/questionnaireService'
-
-const TOTAL_STEPS = 4
-
-const STEP_CONFIG = [
-  {
-    heading: 'Basic Information',
-    subtitle: 'Tell us a little about yourself so we can better understand your background and preferences.',
-  },
-  {
-    heading: 'Communication Preference',
-    subtitle: 'How do you feel most comfortable being supported?',
-    instruction: 'Select up to 5 qualities that would help you feel safe and comfortable talking to your youth worker.',
-  },
-  {
-    heading: 'Interests',
-    subtitle: 'Select topics you enjoy or feel comfortable talking about.',
-    instruction: 'Choose up to 6 topics from different categories.',
-  },
-  {
-    heading: 'Current Challenges',
-    subtitle: 'Select up to 4 areas where you would like support.',
-    note: 'You can update these selections anytime.',
-  },
-]
-
-function isStepValid(step, answers) {
-  switch (step) {
-    case 0:
-      return isBasicInfoComplete(answers.basic, { requireWorkerPrefs: true })
-    case 1:
-      return hasQualitySelection(answers.communication)
-    case 2:
-      return hasInterestSelection(answers.interests)
-    case 3:
-      return hasChallengeSelection(answers.challenges)
-    default:
-      return false
-  }
-}
 
 export default function YouthOnboarding() {
   const { context, refresh } = useYouthSession()
   const navigate = useNavigate()
-  const [step, setStep] = useState(0)
-  const [answers, setAnswers] = useState({
-    basic: { languages: [] },
-    communication: [],
-    interests: [],
-    challenges: [],
-  })
-  const [loading, setLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
-
-  useEffect(() => {
-    const prefilled = youthQuestionnaireToOnboardingAnswers(context?.questionnaire)
-    if (prefilled) setAnswers(prefilled)
-  }, [context?.questionnaire])
 
   if (context?.onboardingComplete) {
     return <Navigate to="/youth-chat/portal" replace />
   }
 
-  const config = STEP_CONFIG[step]
-  const isLast = step === TOTAL_STEPS - 1
-  const canProceed = isStepValid(step, answers)
-
-  async function handleNext() {
-    if (!canProceed) return
-
-    if (!isLast) {
-      setStep((prev) => prev + 1)
-      return
-    }
-
-    setLoading(true)
-    setErrorMessage('')
-    try {
-      const payload = {
-        dateOfBirth: answers.basic.dateOfBirth,
-        gender: answers.basic.gender,
-        country: answers.basic.country,
-        languages: answers.basic.languages,
-        preferredWorkerGender: answers.basic.preferredWorkerGender,
-        preferredWorkerAgeRange: answers.basic.preferredWorkerAgeRange,
-        communication: answers.communication,
-        interests: answers.interests,
-        challenges: answers.challenges,
-      }
-
-      await completeOnboarding(context.youth.id, payload, {
-        preferredName: context.displayName || context.youth.preferred_name,
-      })
-      await refresh()
-      navigate('/youth-chat/portal', { replace: true })
-    } catch (error) {
-      setErrorMessage(error.message || 'Unable to save questionnaire. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function handlePrevious() {
-    if (step > 0) setStep((prev) => prev - 1)
-  }
-
   return (
-    <>
-      {errorMessage && (
-        <div className="fixed left-0 right-0 top-4 z-50 mx-auto max-w-xl px-6">
-          <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {errorMessage}
-          </p>
-        </div>
-      )}
-
-      <OnboardingShell
-        badge="CareBridge AI · Getting to know you"
-        step={step}
-        totalSteps={TOTAL_STEPS}
-        heading={config.heading}
-        subtitle={
-          context?.questionnaire && !context?.onboardingComplete
-            ? 'We have updated our profile questions. Please review your answers and submit.'
-            : config.subtitle
-        }
-        instruction={config.instruction}
-        note={config.note}
-        onPrevious={handlePrevious}
-        onNext={handleNext}
-        nextLabel={isLast ? 'Submit' : 'Next >'}
-        nextDisabled={!canProceed}
-        loading={loading}
-      >
-        {step === 0 && (
-          <BasicInfoStep
-            form={answers.basic}
-            onChange={(basic) => setAnswers({ ...answers, basic })}
-            showWorkerPrefs
-          />
-        )}
-        {step === 1 && (
-          <QualitiesStep
-            options={YOUTH_QUALITIES}
-            selected={answers.communication}
-            max={5}
-            onChange={(communication) => setAnswers({ ...answers, communication })}
-          />
-        )}
-        {step === 2 && (
-          <InterestsStep
-            selected={answers.interests}
-            max={6}
-            onChange={(interests) => setAnswers({ ...answers, interests })}
-          />
-        )}
-        {step === 3 && (
-          <ChallengesStep
-            selected={answers.challenges}
-            max={4}
-            onChange={(challenges) => setAnswers({ ...answers, challenges })}
-          />
-        )}
-      </OnboardingShell>
-    </>
+    <YouthQuestionnaireForm
+      questionnaire={context?.questionnaire}
+      youthId={context.youth.id}
+      reviewSubtitle={
+        context?.questionnaire && !context?.onboardingComplete
+          ? 'We have updated our profile questions. Please review your answers and submit.'
+          : null
+      }
+      onSubmit={async (payload) =>
+        completeOnboarding(context.youth.id, payload, {
+          preferredName: context.displayName || context.youth.preferred_name,
+        })
+      }
+      onSaved={async () => {
+        await refresh()
+        navigate('/youth-chat/portal', { replace: true })
+      }}
+    />
   )
 }

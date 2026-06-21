@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import QuestionnaireProfileView, {
-  mapStaffQuestionnaireToProfile,
-} from '../profile/QuestionnaireProfileView'
+import { mapStaffQuestionnaireToProfile } from '../profile/QuestionnaireProfileView'
+import ProfileSummaryCard from '../profile/ProfileSummaryCard'
+import StaffQuestionnaireProfileSection from '../profile/StaffQuestionnaireProfileSection'
+import { YOUTH_PROFILE_LABELS } from '../../lib/profileLabels'
 import { getStaffQuestionnaire } from '../../services/staffQuestionnaireService'
 
 export default function AssignedWorkerPanel({ workerView, assignedStaff }) {
@@ -57,50 +58,26 @@ export default function AssignedWorkerPanel({ workerView, assignedStaff }) {
   const email = assignedStaff?.email || ''
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-4xl">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800">Assigned Worker</h1>
-        <p className="mt-2 text-slate-600">Your matched youth worker profile.</p>
+        <p className="mt-2 text-slate-600">{YOUTH_PROFILE_LABELS.assignedWorkerSubtitle}</p>
       </header>
 
-      <div className="mb-6 rounded-3xl border border-slate-100 bg-white p-6 shadow-[0_8px_36px_-14px_rgba(45,90,110,0.12)]">
-        <div className="flex flex-wrap items-start gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-3xl">
-            👩
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-teal-600">Your Youth Worker</p>
-            <h2 className="text-2xl font-bold text-slate-800">{name}</h2>
-            {email && (
-              <p className="mt-1 text-sm text-slate-600">{email}</p>
-            )}
-          </div>
-        </div>
-      </div>
+      <ProfileSummaryCard
+        badge={YOUTH_PROFILE_LABELS.assignedWorkerBadge}
+        name={name}
+        email={email}
+        icon="👩"
+      />
 
-      {loading && <p className="text-sm text-slate-500">Loading worker profile…</p>}
-      {error && (
-        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </p>
-      )}
-
-      {!loading && profile && (
-        <QuestionnaireProfileView
-          basicInfo={profile.basicInfo}
-          interests={profile.interests}
-          communicationStyle={profile.communicationStyle}
-          communicationTitle="Support Style"
-          challenges={profile.challenges}
-          challengesTitle="Areas of Expertise"
-        />
-      )}
-
-      {!loading && !error && !profile && (
-        <p className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-          Detailed profile sections will appear once your worker completes their onboarding questionnaire.
-        </p>
-      )}
+      <StaffQuestionnaireProfileSection
+        profile={profile}
+        loading={loading}
+        error={error}
+        loadingText="Loading worker profile…"
+        emptyMessage="Detailed profile sections will appear once your worker completes their onboarding questionnaire."
+      />
     </div>
   )
 }

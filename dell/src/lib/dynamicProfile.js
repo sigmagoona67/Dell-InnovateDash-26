@@ -7,8 +7,19 @@ export { EMPTY_DYNAMIC_PROFILE }
 /** Questionnaire-only on Youth Profile grid — never AI-filled on static side. */
 export const STATIC_ONLY_PROFILE_FIELDS = ['preferred_communication_style', 'current_challenges']
 
+/** AI-only on Youth Profile grid — hidden when filter is Static. */
+export const DYNAMIC_ONLY_PROFILE_FIELDS = ['personality', 'living_arrangement', 'coping_methods']
+
 /** Fields AI may populate in Dynamic Profile (open vocabulary). */
 export const DYNAMIC_PROFILE_FIELDS = ['interests', 'personality', 'living_arrangement', 'coping_methods']
+
+/** Youth Profile filter: which category cards appear per view (all / static / dynamic). */
+export function isYouthProfileFieldVisible(fieldKey, view) {
+  if (view === 'all') return true
+  if (view === 'static') return !DYNAMIC_ONLY_PROFILE_FIELDS.includes(fieldKey)
+  if (view === 'dynamic') return !STATIC_ONLY_PROFILE_FIELDS.includes(fieldKey)
+  return true
+}
 
 export const DYNAMIC_PROFILE_PROMPT = `Generate dynamic_profile as the AI's current understanding of this youth.
 

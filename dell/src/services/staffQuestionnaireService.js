@@ -1,8 +1,10 @@
+import { STAFF_MIN_AGE } from '../lib/profileLabels'
 import { requireInsforge } from '../lib/insforgeClient'
-import { calculateAgeFromDob } from '../lib/onboardingData'
+import { calculateAgeFromDob, normalizeIsoDate } from '../lib/onboardingData'
 import {
   CURRENT_STAFF_ONBOARDING_VERSION,
   isStaffOnboardingComplete,
+  resolveStaffProfileAge,
 } from '../lib/onboardingRequirements'
 
 function db() {
@@ -40,7 +42,8 @@ export function normalizeStaffQuestionnaireRow(row) {
     areas_of_expertise: asStringArray(row.areas_of_expertise || row.supporting_strengths),
     gender: asString(row.gender),
     country: asString(row.country),
-    age: row.age != null ? Number(row.age) : calculateAgeFromDob(row.date_of_birth),
+    date_of_birth: normalizeIsoDate(row.date_of_birth) || null,
+    age: resolveStaffProfileAge(row),
   }
 }
 
@@ -56,11 +59,12 @@ export const EMPTY_STAFF_QUESTIONNAIRE = {
 }
 
 function mapStaffAnswersToPayload(answers) {
-  const age = calculateAgeFromDob(answers.dateOfBirth)
+  const dob = normalizeIsoDate(answers.dateOfBirth)
+  const age = calculateAgeFromDob(dob)
 
   return {
-    date_of_birth: answers.dateOfBirth || null,
-    age,
+    date_of_birth: dob || null,
+    age: age != null && age >= STAFF_MIN_AGE ? age : null,
     gender: answers.gender || null,
     country: answers.country || null,
     languages: answers.languages || [],

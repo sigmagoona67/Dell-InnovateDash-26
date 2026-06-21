@@ -19,6 +19,13 @@ export default function InterestsStep({ selected = [], max = 6, onChange }) {
     setExpandedCategory((prev) => (prev === category ? '' : category))
   }
 
+  function categoryIsHighlighted(category) {
+    const hasSelectedInCategory = INTEREST_CATEGORIES[category].some((label) =>
+      selected.includes(label)
+    )
+    return expandedCategory === category || hasSelectedInCategory
+  }
+
   return (
     <div>
       <div className="mb-4 flex justify-end">
@@ -30,7 +37,7 @@ export default function InterestsStep({ selected = [], max = 6, onChange }) {
           <ChipButton
             key={category}
             label={category}
-            selected={expandedCategory === category}
+            selected={categoryIsHighlighted(category)}
             onToggle={() => toggleCategory(category)}
           />
         ))}

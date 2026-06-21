@@ -144,9 +144,31 @@ export const CHALLENGE_CATEGORIES = [
   },
 ]
 
+/** Normalize DB/API date values to YYYY-MM-DD for forms and age calculation. */
+export function normalizeIsoDate(value) {
+  if (value == null || value === '') return ''
+  const raw = String(value).trim()
+  if (!raw) return ''
+
+  const datePart = raw.split('T')[0]
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart
+
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return ''
+
+  const year = parsed.getFullYear()
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  const day = String(parsed.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function calculateAgeFromDob(dob) {
-  if (!dob) return null
-  const birth = new Date(dob)
+  const normalized = normalizeIsoDate(dob)
+  if (!normalized) return null
+  const parts = normalized.split('-').map(Number)
+  if (parts.length !== 3) return null
+  const [year, month, day] = parts
+  const birth = new Date(year, month - 1, day)
   if (Number.isNaN(birth.getTime())) return null
   const today = new Date()
   let age = today.getFullYear() - birth.getFullYear()
@@ -155,4 +177,17 @@ export function calculateAgeFromDob(dob) {
     age -= 1
   }
   return age >= 0 ? age : null
+}
+
+/** Latest date of birth allowed for someone at least `minAge` years old today. */
+export function maxDateOfBirthForMinAge(minAge) {
+  const today = new Date()
+  return new Date(today.getFullYear() - minAge, today.getMonth(), today.getDate())
+}
+
+export function isDobAtLeastMinAge(dob, minAge) {
+  if (minAge == null) return true
+  if (!dob) return false
+  const age = calculateAgeFromDob(dob)
+  return age != null && age >= minAge
 }
