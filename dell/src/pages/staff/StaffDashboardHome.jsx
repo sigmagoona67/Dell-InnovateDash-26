@@ -118,9 +118,17 @@ export default function StaffDashboardHome() {
             <h1 className="mt-1 text-3xl font-bold text-slate-800">Staff Dashboard</h1>
             <p className="mt-2 text-slate-600">Welcome back, {staffName}. Manage assigned youth and review AI insights.</p>
           </div>
-          <Link to="/" className="text-sm font-medium text-sky-600 hover:text-sky-700">
-            Portal selection
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/staff-dashboard/profile"
+              className="text-sm font-medium text-sky-600 hover:text-sky-700"
+            >
+              My Profile
+            </Link>
+            <Link to="/" className="text-sm font-medium text-sky-600 hover:text-sky-700">
+              Portal selection
+            </Link>
+          </div>
         </header>
 
         {errorMessage && (

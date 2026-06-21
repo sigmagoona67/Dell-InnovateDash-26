@@ -75,3 +75,12 @@ export function StaffAuthGate({ children }) {
 
   return children
 }
+
+export function StaffEntryRedirect() {
+  const { context } = useStaffSession()
+  const destination = context?.destination || (
+    context?.onboardingComplete ? '/staff-dashboard' : '/staff-dashboard/onboarding'
+  )
+
+  return <Navigate to={destination} replace />
+}

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import SetupErrorPage from '../components/SetupErrorPage'
 import {
@@ -18,8 +18,10 @@ export function YouthSessionProvider({ children }) {
     context: null,
   })
 
-  async function refresh() {
-    setState((prev) => ({ ...prev, loading: true, error: null, setupError: null }))
+  const refresh = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setState((prev) => ({ ...prev, loading: true, error: null, setupError: null }))
+    }
     try {
       const context = await bootstrapYouthSession('session-refresh')
       setState({ loading: false, error: null, setupError: null, context })
@@ -33,18 +35,18 @@ export function YouthSessionProvider({ children }) {
         context: null,
       })
     }
-  }
+  }, [])
 
   useEffect(() => {
     refresh()
-  }, [])
+  }, [refresh])
 
   const value = useMemo(
     () => ({
       ...state,
       refresh,
     }),
-    [state],
+    [state, refresh],
   )
 
   return <YouthSessionContext.Provider value={value}>{children}</YouthSessionContext.Provider>
@@ -60,7 +62,7 @@ export function YouthAuthGate({ children }) {
   const { loading, error, setupError, context, refresh } = useYouthSession()
   const location = useLocation()
 
-  if (loading) {
+  if (loading && !context) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-white px-6">
         <p className="text-slate-600">Loading your safe space...</p>
@@ -87,7 +89,7 @@ export function YouthAuthGate({ children }) {
 export function YouthEntryRedirect() {
   const { context } = useYouthSession()
   const destination = context?.destination || (
-    context?.youth?.onboarding_completed ? '/youth-chat/portal' : '/youth-chat/onboarding'
+    context?.onboardingComplete ? '/youth-chat/portal' : '/youth-chat/onboarding'
   )
 
   console.log('[youth-auth] entry redirect to:', destination)

@@ -6,7 +6,8 @@ import {
   formatYouthNameLine,
 } from '../lib/assignedYouthCard'
 import { resolveCurrentConcern, resolveCasePreview } from '../lib/dashboardCard'
-import { findProfileByAuthUserId, createProfile, resolveDisplayNameFromUser } from '../lib/profileService'
+import { findProfileByAuthUserId, createProfile, resolveDisplayNameFromUser, ensureStaffProfileRecord } from '../lib/profileService'
+import { getStaffQuestionnaire, reconcileStaffOnboardingStatus } from './staffQuestionnaireService'
 import { resolveYouthRiskLevel } from '../lib/riskResolver'
 import { RISK_ORDER, sortByRisk } from '../lib/staffMockData'
 import { EMPTY_QUESTIONNAIRE, getQuestionnaire } from './questionnaireService'
@@ -110,7 +111,10 @@ export async function ensureStaffProfile(user) {
   const displayName = resolveDisplayNameFromUser(user, 'Staff')
 
   let profile = await findProfileByAuthUserId(user.id)
-  if (profile) return profile
+  if (profile) {
+    await ensureStaffProfileRecord({ profileId: profile.id })
+    return profile
+  }
 
   profile = await createProfile({
     authUserId: user.id,
@@ -118,7 +122,12 @@ export async function ensureStaffProfile(user) {
     role: 'staff',
     displayName,
   })
+  await ensureStaffProfileRecord({ profileId: profile.id })
   return profile
+}
+
+export function getStaffDestination(onboardingComplete) {
+  return onboardingComplete ? '/staff-dashboard' : '/staff-dashboard/onboarding'
 }
 
 export async function bootstrapStaffSession() {
@@ -130,7 +139,20 @@ export async function bootstrapStaffSession() {
   }
 
   const staffProfile = await ensureStaffProfile(user)
-  return { user, staffProfile }
+  const staffRecord = await ensureStaffProfileRecord({ profileId: staffProfile.id })
+  const questionnaire = await getStaffQuestionnaire(staffProfile.id)
+  const { staffRecord: reconciledStaffRecord, onboardingComplete } =
+    await reconcileStaffOnboardingStatus(staffRecord, questionnaire)
+  const destination = getStaffDestination(onboardingComplete)
+
+  return {
+    user,
+    staffProfile,
+    staffRecord: reconciledStaffRecord,
+    questionnaire,
+    onboardingComplete,
+    destination,
+  }
 }
 
 /** Only the youth's assigned worker may edit insights / session summaries. */

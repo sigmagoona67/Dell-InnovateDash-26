@@ -1,4 +1,9 @@
 import { requireInsforge } from '../lib/insforgeClient'
+import { calculateAgeFromDob } from '../lib/onboardingData'
+import {
+  CURRENT_YOUTH_ONBOARDING_VERSION,
+  isYouthOnboardingComplete,
+} from '../lib/onboardingRequirements'
 import { syncProfileInsights } from './aiService'
 
 function db() {
@@ -37,6 +42,12 @@ export function normalizeQuestionnaireRow(row) {
     current_challenges: asStringArray(row.current_challenges),
     coping_methods: asStringArray(row.coping_methods),
     additional_notes: asString(row.additional_notes),
+    languages: asStringArray(row.languages),
+    gender: asString(row.gender),
+    country: asString(row.country),
+    preferred_worker_gender: asString(row.preferred_worker_gender),
+    preferred_worker_age_range: asString(row.preferred_worker_age_range),
+    age: row.age != null ? Number(row.age) : calculateAgeFromDob(row.date_of_birth),
   }
 }
 
@@ -48,17 +59,34 @@ export const EMPTY_QUESTIONNAIRE = {
   current_challenges: [],
   coping_methods: [],
   additional_notes: '',
+  date_of_birth: null,
+  age: null,
+  gender: '',
+  country: '',
+  languages: [],
+  preferred_worker_gender: '',
+  preferred_worker_age_range: '',
 }
 
 function mapAnswersToPayload(answers) {
+  const age = calculateAgeFromDob(answers.dateOfBirth)
+
   return {
+    date_of_birth: answers.dateOfBirth || null,
+    age,
+    gender: answers.gender || null,
+    country: answers.country || null,
+    languages: answers.languages || [],
+    preferred_worker_gender: answers.preferredWorkerGender || null,
+    preferred_worker_age_range: answers.preferredWorkerAgeRange || null,
     interests: answers.interests || [],
-    personality: answers.personality || [],
     preferred_communication_style: answers.communication || [],
-    living_arrangement: answers.living || null,
     current_challenges: answers.challenges || [],
-    coping_methods: answers.coping || [],
-    additional_notes: answers.notes || '',
+    questionnaire_version: CURRENT_YOUTH_ONBOARDING_VERSION,
+    personality: [],
+    living_arrangement: null,
+    coping_methods: [],
+    additional_notes: '',
   }
 }
 
@@ -105,10 +133,21 @@ export async function saveQuestionnaire(youthId, answers) {
 export async function completeOnboarding(youthId, answers, { preferredName } = {}) {
   await saveQuestionnaire(youthId, answers)
 
+  const { data: existing, error: existingError } = await db()
+    .from('youth_profiles')
+    .select('assigned_staff_id')
+    .eq('id', youthId)
+    .maybeSingle()
+
+  if (existingError) throw existingError
+
   const updatePayload = {
     onboarding_completed: true,
-    assignment_status: 'pending',
-    assigned_staff_id: null,
+  }
+
+  if (!existing?.assigned_staff_id) {
+    updatePayload.assignment_status = 'pending'
+    updatePayload.assigned_staff_id = null
   }
 
   if (preferredName?.trim()) {
@@ -124,6 +163,25 @@ export async function completeOnboarding(youthId, answers, { preferredName } = {
 
   if (error) throw error
   return data
+}
+
+export async function reconcileYouthOnboardingStatus(youth, questionnaire) {
+  const onboardingComplete = isYouthOnboardingComplete(youth, questionnaire)
+  const flaggedComplete = Boolean(youth?.onboarding_completed)
+
+  if (flaggedComplete === onboardingComplete) {
+    return { youth, onboardingComplete }
+  }
+
+  const { data, error } = await db()
+    .from('youth_profiles')
+    .update({ onboarding_completed: onboardingComplete })
+    .eq('id', youth.id)
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return { youth: data, onboardingComplete }
 }
 
 export async function getQuestionnaire(youthId) {

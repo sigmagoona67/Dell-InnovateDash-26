@@ -5,10 +5,10 @@ import ChallengesStep, { hasMinSelection as hasChallengeSelection } from '../../
 import InterestsStep, { hasMinSelection as hasInterestSelection } from '../../components/onboarding/InterestsStep'
 import { OnboardingShell } from '../../components/onboarding/OnboardingShell'
 import QualitiesStep, { hasMinSelection as hasQualitySelection } from '../../components/onboarding/QualitiesStep'
-import { useYouthSession } from '../../context/YouthSessionContext'
-import { YOUTH_QUALITIES } from '../../lib/onboardingData'
-import { youthQuestionnaireToOnboardingAnswers } from '../../lib/onboardingRequirements'
-import { completeOnboarding } from '../../services/questionnaireService'
+import { useStaffSession } from '../../context/StaffSessionContext'
+import { STAFF_QUALITIES } from '../../lib/onboardingData'
+import { staffQuestionnaireToOnboardingAnswers } from '../../lib/onboardingRequirements'
+import { completeStaffOnboarding } from '../../services/staffQuestionnaireService'
 
 const TOTAL_STEPS = 4
 
@@ -18,18 +18,18 @@ const STEP_CONFIG = [
     subtitle: 'Tell us a little about yourself so we can better understand your background and preferences.',
   },
   {
-    heading: 'Communication Preference',
-    subtitle: 'How do you feel most comfortable being supported?',
-    instruction: 'Select up to 5 qualities that would help you feel safe and comfortable talking to your youth worker.',
+    heading: 'Support Style',
+    subtitle: 'Which best describes your support style?',
+    instruction: 'Select up to 5 qualities that best describe how you usually support young people.',
   },
   {
     heading: 'Interests',
-    subtitle: 'Select topics you enjoy or feel comfortable talking about.',
+    subtitle: 'Select topics that you enjoy discussing or connecting with youths through.',
     instruction: 'Choose up to 6 topics from different categories.',
   },
   {
-    heading: 'Current Challenges',
-    subtitle: 'Select up to 4 areas where you would like support.',
+    heading: 'Areas of Expertise',
+    subtitle: 'Select up to 4 areas where you have experience or confidence supporting youths.',
     note: 'You can update these selections anytime.',
   },
 ]
@@ -37,7 +37,7 @@ const STEP_CONFIG = [
 function isStepValid(step, answers) {
   switch (step) {
     case 0:
-      return isBasicInfoComplete(answers.basic, { requireWorkerPrefs: true })
+      return isBasicInfoComplete(answers.basic)
     case 1:
       return hasQualitySelection(answers.communication)
     case 2:
@@ -49,8 +49,8 @@ function isStepValid(step, answers) {
   }
 }
 
-export default function YouthOnboarding() {
-  const { context, refresh } = useYouthSession()
+export default function StaffOnboarding() {
+  const { context, refresh } = useStaffSession()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState({
@@ -63,12 +63,12 @@ export default function YouthOnboarding() {
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
-    const prefilled = youthQuestionnaireToOnboardingAnswers(context?.questionnaire)
+    const prefilled = staffQuestionnaireToOnboardingAnswers(context?.questionnaire)
     if (prefilled) setAnswers(prefilled)
   }, [context?.questionnaire])
 
   if (context?.onboardingComplete) {
-    return <Navigate to="/youth-chat/portal" replace />
+    return <Navigate to="/staff-dashboard" replace />
   }
 
   const config = STEP_CONFIG[step]
@@ -91,18 +91,14 @@ export default function YouthOnboarding() {
         gender: answers.basic.gender,
         country: answers.basic.country,
         languages: answers.basic.languages,
-        preferredWorkerGender: answers.basic.preferredWorkerGender,
-        preferredWorkerAgeRange: answers.basic.preferredWorkerAgeRange,
         communication: answers.communication,
         interests: answers.interests,
         challenges: answers.challenges,
       }
 
-      await completeOnboarding(context.youth.id, payload, {
-        preferredName: context.displayName || context.youth.preferred_name,
-      })
+      await completeStaffOnboarding(context.staffProfile.id, payload)
       await refresh()
-      navigate('/youth-chat/portal', { replace: true })
+      navigate('/staff-dashboard', { replace: true })
     } catch (error) {
       setErrorMessage(error.message || 'Unable to save questionnaire. Please try again.')
     } finally {
@@ -125,7 +121,7 @@ export default function YouthOnboarding() {
       )}
 
       <OnboardingShell
-        badge="CareBridge AI · Getting to know you"
+        badge="CareBridge AI · Staff onboarding"
         step={step}
         totalSteps={TOTAL_STEPS}
         heading={config.heading}
@@ -146,12 +142,11 @@ export default function YouthOnboarding() {
           <BasicInfoStep
             form={answers.basic}
             onChange={(basic) => setAnswers({ ...answers, basic })}
-            showWorkerPrefs
           />
         )}
         {step === 1 && (
           <QualitiesStep
-            options={YOUTH_QUALITIES}
+            options={STAFF_QUALITIES}
             selected={answers.communication}
             max={5}
             onChange={(communication) => setAnswers({ ...answers, communication })}

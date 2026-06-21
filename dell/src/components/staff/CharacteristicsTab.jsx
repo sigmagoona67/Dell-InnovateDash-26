@@ -32,16 +32,68 @@ const YOUTH_PROFILE_VIEWS = [
 
 const PROFILE_FIELD_DEFS = [
   { key: 'interests', title: 'Interests' },
-  { key: 'personality', title: 'Personality' },
   {
     key: 'preferred_communication_style',
     title: 'Preferred Communication Style',
     hint: 'How the youth prefers to be approached',
   },
-  { key: 'living_arrangement', title: 'Family Situation', isSingle: true },
   { key: 'current_challenges', title: 'Current Challenges' },
-  { key: 'coping_methods', title: 'Coping Methods' },
 ]
+
+function BasicInformationSection({ questionnaire }) {
+  if (!questionnaire) return null
+
+  const hasBasic =
+    questionnaire.age != null ||
+    questionnaire.gender ||
+    questionnaire.country ||
+    (questionnaire.languages || []).length
+
+  if (!hasBasic) return null
+
+  const rows = [
+    { label: 'Age', value: questionnaire.age != null ? String(questionnaire.age) : null },
+    { label: 'Gender', value: questionnaire.gender },
+    { label: 'Country', value: questionnaire.country },
+    {
+      label: 'Languages spoken',
+      value: (questionnaire.languages || []).join(', ') || null,
+    },
+  ]
+
+  return (
+    <div className="mb-6 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 lg:col-span-2">
+      <h4 className="mb-3 text-base font-bold text-slate-800">Basic Information</h4>
+      <div className="space-y-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-sm font-semibold text-blue-500">{row.label}</span>
+            <span className="text-sm text-slate-800">{row.value || '—'}</span>
+          </div>
+        ))}
+      </div>
+      {(questionnaire.preferred_worker_gender || questionnaire.preferred_worker_age_range) && (
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <p className="mb-2 text-sm font-semibold text-slate-700">Youth Worker Preference</p>
+          <div className="space-y-2">
+            {questionnaire.preferred_worker_gender && (
+              <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-sm font-semibold text-blue-500">Preferred gender</span>
+                <span className="text-sm text-slate-800">{questionnaire.preferred_worker_gender}</span>
+              </div>
+            )}
+            {questionnaire.preferred_worker_age_range && (
+              <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-sm font-semibold text-blue-500">Preferred age range</span>
+                <span className="text-sm text-slate-800">{questionnaire.preferred_worker_age_range}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function ViewToggle({ active, onChange, options = PROFILE_VIEWS }) {
   return (
@@ -355,12 +407,19 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
   const hasDynamicData = hasDynamicProfileData(dynamicFields)
 
   const hasStaticData = useMemo(
-    () =>
-      PROFILE_FIELD_DEFS.some((field) => {
+    () => {
+      const hasBasic =
+        questionnaire?.age != null ||
+        questionnaire?.gender ||
+        questionnaire?.country ||
+        (questionnaire?.languages || []).length
+      const hasFields = PROFILE_FIELD_DEFS.some((field) => {
         const value = staticFields[field.key]
         return field.isSingle ? Boolean(value) : (value || []).length > 0
-      }),
-    [staticFields],
+      })
+      return hasBasic || hasFields
+    },
+    [staticFields, questionnaire],
   )
 
   const showProfileGrid =
@@ -633,6 +692,9 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
 
         {showProfileGrid && (
           <div className="grid gap-4 lg:grid-cols-2">
+            {youthProfileView !== 'dynamic' && (
+              <BasicInformationSection questionnaire={questionnaire} />
+            )}
             {PROFILE_FIELD_DEFS.map((field) => {
               const staticValue = staticFields[field.key]
               const dynamicValue = dynamicFields[field.key]

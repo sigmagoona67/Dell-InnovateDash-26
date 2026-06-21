@@ -164,7 +164,39 @@ export async function upsertAppProfileAfterAuth({ authUserId, email, role, name 
     })
   }
 
+  if (role === 'staff') {
+    await ensureStaffProfileRecord({ profileId: profile.id })
+  }
+
   return profile
+}
+
+export async function findStaffProfileRecordByUserId(profileId) {
+  const { data, error } = await getDatabase()
+    .from('staff_profiles')
+    .select('*')
+    .eq('profile_id', profileId)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
+export async function createStaffProfileRecord({ profileId }) {
+  const { data, error } = await getDatabase()
+    .from('staff_profiles')
+    .insert([{ profile_id: profileId, questionnaire_completed: false }])
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function ensureStaffProfileRecord({ profileId }) {
+  const existing = await findStaffProfileRecordByUserId(profileId)
+  if (existing) return existing
+  return createStaffProfileRecord({ profileId })
 }
 
 /** @deprecated Use upsertAppProfileAfterAuth */

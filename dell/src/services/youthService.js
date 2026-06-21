@@ -7,6 +7,7 @@ import {
   resolveDisplayNameFromUser,
   upsertAppProfileAfterAuth,
 } from '../lib/profileService'
+import { getQuestionnaire, reconcileYouthOnboardingStatus } from './questionnaireService'
 
 export async function getCurrentAuthUser() {
   const { data, error } = await requireInsforge().auth.getCurrentUser()
@@ -54,9 +55,8 @@ export async function ensureYouthProfile({ profileId, preferredName }) {
   return youth
 }
 
-export function getYouthDestination(youth) {
-  const onboardingCompleted = Boolean(youth?.onboarding_completed)
-  return onboardingCompleted ? '/youth-chat/portal' : '/youth-chat/onboarding'
+export function getYouthDestination(onboardingComplete) {
+  return onboardingComplete ? '/youth-chat/portal' : '/youth-chat/onboarding'
 }
 
 export async function bootstrapYouthSession(source = 'unknown') {
@@ -91,23 +91,31 @@ export async function bootstrapYouthSession(source = 'unknown') {
     profileId: profile.id,
     preferredName: profile.display_name,
   })
-  console.log('[youth-auth] onboarding status:', youth.onboarding_completed)
+
+  const questionnaire = await getQuestionnaire(youth.id)
+  const { youth: reconciledYouth, onboardingComplete } = await reconcileYouthOnboardingStatus(
+    youth,
+    questionnaire,
+  )
+  console.log('[youth-auth] onboarding status:', reconciledYouth.onboarding_completed, 'current:', onboardingComplete)
 
   let assignedStaff = null
-  if (youth.assigned_staff_id) {
-    assignedStaff = await findStaffProfileById(youth.assigned_staff_id)
+  if (reconciledYouth.assigned_staff_id) {
+    assignedStaff = await findStaffProfileById(reconciledYouth.assigned_staff_id)
   }
 
-  const destination = getYouthDestination(youth)
+  const destination = getYouthDestination(onboardingComplete)
   console.log('[youth-auth] final route destination:', destination)
 
   return {
     user,
     profile,
-    youth,
+    youth: reconciledYouth,
+    questionnaire,
+    onboardingComplete,
     assignedStaff,
     displayName:
-      youth.preferred_name ||
+      reconciledYouth.preferred_name ||
       profile.display_name ||
       resolveDisplayNameFromUser(user) ||
       profile.email.split('@')[0],
@@ -119,7 +127,7 @@ export async function loadYouthContext() {
   return bootstrapYouthSession('session-load')
 }
 
-export async function getAssignedWorkerView(youth, assignedStaff) {
+export function getAssignedWorkerView(youth, assignedStaff) {
   if (!youth.assigned_staff_id || !assignedStaff) {
     return {
       hasAssignedWorker: false,
@@ -132,10 +140,8 @@ export async function getAssignedWorkerView(youth, assignedStaff) {
   return {
     hasAssignedWorker: true,
     name: assignedStaff.display_name || 'Youth Worker',
-    status: 'Offline',
-    workingHours: '9AM - 6PM',
-    lastFollowUp: '8 June 2026',
-    nextFollowUp: 'Within 24 hours',
+    email: assignedStaff.email || '',
+    status: 'Available',
     message: `Your AI conversation summary will be shared with ${assignedStaff.display_name || 'your youth worker'} to provide continuous support.`,
   }
 }
