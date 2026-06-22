@@ -10,7 +10,7 @@ import { insforge, insforgeConfigHint, isInsforgeConfigured } from '../lib/insfo
 
 const MIN_PASSWORD_LENGTH = 8
 
-export default function AuthCard({ role, accent, loginDestination }) {
+export default function AuthCard({ role, accent, loginDestination, allowSignUp = true, signUpLink }) {
   const [isLogin, setIsLogin] = useState(true)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -96,7 +96,7 @@ export default function AuthCard({ role, accent, loginDestination }) {
     setLoading(true)
 
     try {
-      if (isLogin) {
+      if (isLogin || !allowSignUp) {
         await loginWithRole(insforge, { email, password, role })
         setSuccessMessage('Login successful. Redirecting...')
         navigate(loginDestination, { replace: true })
@@ -140,22 +140,26 @@ export default function AuthCard({ role, accent, loginDestination }) {
       className={`rounded-3xl border ${theme.border} bg-white p-6 shadow-[0_8px_36px_-14px_rgba(45,90,110,0.2)] sm:p-8`}
       aria-live="polite"
     >
-      <div className="mb-6 inline-flex rounded-2xl bg-slate-50 p-1">
-        <button
-          type="button"
-          className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${isLogin ? theme.toggleActive : theme.toggleIdle}`}
-          onClick={() => toggleMode(true)}
-        >
-          Login
-        </button>
-        <button
-          type="button"
-          className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${!isLogin ? theme.toggleActive : theme.toggleIdle}`}
-          onClick={() => toggleMode(false)}
-        >
-          Sign Up
-        </button>
-      </div>
+      {allowSignUp ? (
+        <div className="mb-6 inline-flex rounded-2xl bg-slate-50 p-1">
+          <button
+            type="button"
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${isLogin ? theme.toggleActive : theme.toggleIdle}`}
+            onClick={() => toggleMode(true)}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${!isLogin ? theme.toggleActive : theme.toggleIdle}`}
+            onClick={() => toggleMode(false)}
+          >
+            Sign Up
+          </button>
+        </div>
+      ) : (
+        <h2 className="mb-6 text-lg font-semibold text-slate-800">Login</h2>
+      )}
 
       {errorMessage && (
         <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -170,7 +174,7 @@ export default function AuthCard({ role, accent, loginDestination }) {
       )}
 
       <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-        {!isLogin && (
+        {!isLogin && allowSignUp && (
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-slate-700">Name</span>
             <input
@@ -211,7 +215,7 @@ export default function AuthCard({ role, accent, loginDestination }) {
           />
         </label>
 
-        {!isLogin && (
+        {!isLogin && allowSignUp && (
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-slate-700">Confirm Password</span>
             <input
@@ -234,6 +238,18 @@ export default function AuthCard({ role, accent, loginDestination }) {
           {loading ? 'Please wait...' : isLogin ? `Login as ${role}` : `Create ${role} account`}
         </button>
       </form>
+
+      {signUpLink && isLogin && (
+        <p className="mt-4 text-sm text-slate-500">
+          Not an existing staff?{' '}
+          <Link
+            to={signUpLink}
+            className="cursor-pointer font-medium text-sky-600 underline-offset-2 transition hover:underline"
+          >
+            Sign up here
+          </Link>
+        </p>
+      )}
 
       <p className="mt-4 text-sm text-slate-500">
         By continuing, you agree to use this platform responsibly in partnership with your care team.

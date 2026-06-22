@@ -1,4 +1,5 @@
 import { upsertAppProfileAfterAuth } from './profileService'
+import { STAFF_ACCESS_CODE } from './staffAccessConfig'
 
 const ROLE_CACHE_PREFIX = 'carebridge-role:'
 
@@ -34,6 +35,15 @@ export function parseAuthError(error) {
     message.includes('wrong password')
   ) {
     return 'Wrong email or password. Please try again.'
+  }
+
+  if (
+    message.includes('already registered') ||
+    message.includes('already exists') ||
+    message.includes('duplicate') ||
+    message.includes('user already')
+  ) {
+    return 'An account with this email already exists.'
   }
 
   if (message.includes('not found') || message.includes('user does not exist')) {
@@ -171,6 +181,28 @@ export async function signUpWithRole(insforge, { email, password, role, name }) 
   }
 
   return { kind: 'created' }
+}
+
+export async function signUpStaff(insforge, { fullName, email, password, accessCode }) {
+  const trimmedName = fullName?.trim()
+  if (!trimmedName) {
+    throw new Error('Full name is required.')
+  }
+
+  if (!email?.trim() || !password) {
+    throw new Error('Email and password are required.')
+  }
+
+  if (accessCode !== STAFF_ACCESS_CODE) {
+    throw new Error('Invalid staff access code.')
+  }
+
+  return signUpWithRole(insforge, {
+    email: email.trim(),
+    password,
+    role: 'staff',
+    name: trimmedName,
+  })
 }
 
 export function getVerificationGuidance(error) {

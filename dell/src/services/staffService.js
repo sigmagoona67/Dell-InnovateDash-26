@@ -6,11 +6,16 @@ import {
   formatYouthNameLine,
 } from '../lib/assignedYouthCard'
 import { resolveCurrentConcern, resolveCasePreview } from '../lib/dashboardCard'
+import { resolveMentalHealthConcerns } from '../lib/onboardingData'
 import { findProfileByAuthUserId, createProfile, resolveDisplayNameFromUser, ensureStaffProfileRecord } from '../lib/profileService'
 import { getStaffQuestionnaire, reconcileStaffOnboardingStatus } from './staffQuestionnaireService'
 import { resolveYouthRiskLevel } from '../lib/riskResolver'
 import { RISK_ORDER, sortByRisk } from '../lib/staffMockData'
-import { EMPTY_QUESTIONNAIRE, getQuestionnaire } from './questionnaireService'
+import { EMPTY_QUESTIONNAIRE, getQuestionnaire, normalizeQuestionnaireRow } from './questionnaireService'
+import {
+  computeCompatibilityForPair,
+  sortByCompatibility,
+} from './compatibilityService'
 
 import { loadYouthInsights } from './insightsFallbackService'
 
@@ -64,6 +69,7 @@ function mapYouthCard(youthRow, profileRow, questionnaire, sessions, offlineSess
 
   const currentConcern = resolveCurrentConcern({ insights, questionnaire })
   const casePreview = resolveCasePreview({ insights, sessions, youthName: displayName })
+  const mentalHealthConcerns = resolveMentalHealthConcerns(questionnaire)
 
   const age = youthRow.age ?? questionnaire?.age ?? null
 
@@ -77,6 +83,7 @@ function mapYouthCard(youthRow, profileRow, questionnaire, sessions, offlineSess
     riskLevel,
     hasNew: activityMeta.hasNew,
     currentConcern,
+    mentalHealthConcerns,
     casePreview,
     currentStateDisplay: formatCurrentStateDisplay(insights),
     latestInteractionInsight: formatLatestInteractionInsight(insights),
@@ -177,7 +184,7 @@ async function fetchLastViewed(staffId, youthIds) {
   return Object.fromEntries(data.map((row) => [row.youth_id, row.last_viewed_at]))
 }
 
-async function buildYouthCards(staffId, youthRows) {
+async function buildYouthCards(staffId, youthRows, staffQuestionnaire = null) {
   if (!youthRows.length) return []
 
   const youthIds = youthRows.map((row) => row.id)
@@ -248,8 +255,9 @@ async function buildYouthCards(staffId, youthRows) {
     return acc
   }, {})
 
-  return youthRows.map((row) =>
-    mapYouthCard(
+  return youthRows.map((row) => {
+    const normalizedQuestionnaire = normalizeQuestionnaireRow(questionnaireMap[row.id])
+    const card = mapYouthCard(
       row,
       profileMap[row.user_id],
       questionnaireMap[row.id],
@@ -258,12 +266,18 @@ async function buildYouthCards(staffId, youthRows) {
       insightsMap[row.id],
       messagesMap[row.id],
       lastViewedMap[row.id],
-    ),
-  )
+    )
+
+    if (staffQuestionnaire) {
+      card.compatibility = computeCompatibilityForPair(normalizedQuestionnaire, staffQuestionnaire)
+    }
+
+    return card
+  })
 }
 
 /** Pending youth cards use the same risk/insights logic as assigned cards. */
-export async function loadPendingYouth(staffId) {
+export async function loadPendingYouth(staffId, staffQuestionnaire = null) {
   console.log('Loading pending youth...')
 
   const { data, error } = await db().from('youth_profiles').select('*').is('assigned_staff_id', null)
@@ -280,7 +294,11 @@ export async function loadPendingYouth(staffId) {
   }
 
   const rawRows = data || []
-  const pending = staffId ? await buildYouthCards(staffId, rawRows) : []
+  let pending = staffId ? await buildYouthCards(staffId, rawRows, staffQuestionnaire) : []
+
+  if (pending.length) {
+    pending = sortByCompatibility(pending)
+  }
 
   console.log('Pending youth mapped cards:', pending)
 
@@ -292,9 +310,9 @@ export async function loadPendingYouth(staffId) {
 }
 
 export async function getStaffDashboard() {
-  const { staffProfile } = await bootstrapStaffSession()
+  const { staffProfile, questionnaire: staffQuestionnaire } = await bootstrapStaffSession()
 
-  const pendingResult = await loadPendingYouth(staffProfile.id)
+  const pendingResult = await loadPendingYouth(staffProfile.id, staffQuestionnaire)
 
   const { data: assignedRows, error: assignedError } = await db()
     .from('youth_profiles')
@@ -470,11 +488,22 @@ export async function getYouthDetail(youthId) {
 
   const approvedOffline = (offlineSessions || []).filter((s) => s.status === 'approved')
 
+  let compatibility = null
+  if (youthRow.assigned_staff_id == null) {
+    try {
+      const staffQuestionnaire = await getStaffQuestionnaire(staffProfile.id)
+      compatibility = computeCompatibilityForPair(questionnaire, staffQuestionnaire)
+    } catch (error) {
+      console.warn('[staff] youth detail compatibility failed:', error?.message || error)
+    }
+  }
+
   return {
     youth: youthRow,
     profile: profileRow,
     name: displayName,
     questionnaire: questionnaire || { ...EMPTY_QUESTIONNAIRE },
+    compatibility,
     insights:
       mergedInsights ||
       {
