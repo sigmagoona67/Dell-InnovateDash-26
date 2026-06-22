@@ -1,6 +1,8 @@
+import { memo } from 'react'
+
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-export default function MonthCalendar({
+function MonthCalendar({
   year,
   month,
   markedDays = [],
@@ -99,3 +101,5 @@ export default function MonthCalendar({
     </div>
   )
 }
+
+export default memo(MonthCalendar)

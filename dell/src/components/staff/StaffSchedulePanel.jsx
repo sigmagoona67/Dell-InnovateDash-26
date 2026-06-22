@@ -8,10 +8,10 @@ import {
   getWindowLabel,
   shiftMonth,
 } from '../../lib/calendarRange'
+import { hourToTime } from '../../lib/scheduleSlots'
 import {
   getMarkedDaysFromNotes,
   getMarkedDaysFromSlots,
-  getStaffDayNote,
   getStaffScheduleForMonth,
   mergeStaffDaySlots,
   saveStaffDayNote,
@@ -32,13 +32,7 @@ const STATUS_STYLES = {
 
 function SlotButton({ slot, onToggle, saving }) {
   const label =
-    slot.status === 'available'
-      ? 'Open'
-      : slot.status === 'blocked'
-        ? 'Blocked'
-        : slot.youthId
-          ? 'Booked'
-          : 'Booked'
+    slot.status === 'available' ? 'Open' : slot.status === 'blocked' ? 'Blocked' : 'Booked'
 
   return (
     <button
@@ -60,56 +54,61 @@ export default function StaffSchedulePanel({ staffId }) {
   const [month, setMonth] = useState(initial.month)
   const [selectedDay, setSelectedDay] = useState(new Date().getDate())
   const [monthData, setMonthData] = useState({ slots: [], notes: [], tablesReady: true })
-  const [daySlots, setDaySlots] = useState([])
-  const [dayNote, setDayNote] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [dayNoteDraft, setDayNoteDraft] = useState('')
+  const [initialLoading, setInitialLoading] = useState(true)
   const [savingSlot, setSavingSlot] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [notice, setNotice] = useState('')
 
   const selectedDateKey = formatDateKey(year, month, selectedDay)
+
   const markedDays = useMemo(() => {
     const slotDays = getMarkedDaysFromSlots(monthData.slots)
     const noteDays = getMarkedDaysFromNotes(monthData.notes)
     return [...new Set([...slotDays, ...noteDays])]
   }, [monthData])
 
-  const loadMonth = useCallback(async () => {
-    if (!staffId) return
-    setLoading(true)
-    setErrorMessage('')
-    try {
-      const data = await getStaffScheduleForMonth(staffId, year, month)
-      setMonthData(data)
-      if (!data.tablesReady) {
-        setErrorMessage('Schedule tables are not deployed yet. Run the schedule migration on InsForge.')
-      }
-    } catch (error) {
-      setErrorMessage(error.message || 'Unable to load schedule.')
-    } finally {
-      setLoading(false)
-    }
-  }, [staffId, year, month])
+  const daySlots = useMemo(
+    () => mergeStaffDaySlots(selectedDateKey, monthData.slots),
+    [selectedDateKey, monthData.slots],
+  )
 
-  const loadDay = useCallback(async () => {
-    if (!staffId) return
-    setDaySlots(mergeStaffDaySlots(selectedDateKey, monthData.slots))
-    try {
-      const note = await getStaffDayNote(staffId, selectedDateKey)
-      setDayNote(note)
-    } catch (error) {
-      setErrorMessage(error.message || 'Unable to load day notes.')
-    }
-  }, [staffId, selectedDateKey, monthData.slots])
+  const savedDayNote = useMemo(() => {
+    const row = monthData.notes.find((note) => note.note_date === selectedDateKey)
+    return row?.notes || ''
+  }, [monthData.notes, selectedDateKey])
+
+  useEffect(() => {
+    setDayNoteDraft(savedDayNote)
+  }, [savedDayNote, selectedDateKey])
+
+  const loadMonth = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!staffId) {
+        if (!silent) setInitialLoading(false)
+        return
+      }
+      if (!silent) setInitialLoading(true)
+      setErrorMessage('')
+      try {
+        const data = await getStaffScheduleForMonth(staffId, year, month)
+        setMonthData(data)
+        if (!data.tablesReady) {
+          setErrorMessage('Schedule tables are not deployed yet. Run the schedule migration on InsForge.')
+        }
+      } catch (error) {
+        setErrorMessage(error.message || 'Unable to load schedule.')
+      } finally {
+        if (!silent) setInitialLoading(false)
+      }
+    },
+    [staffId, year, month],
+  )
 
   useEffect(() => {
     loadMonth()
   }, [loadMonth])
-
-  useEffect(() => {
-    loadDay()
-  }, [loadDay])
 
   function handlePrevMonth() {
     const next = shiftMonth(year, month, -1)
@@ -131,6 +130,7 @@ export default function StaffSchedulePanel({ staffId }) {
     setNotice('')
     setErrorMessage('')
     const nextStatus = STATUS_CYCLE[slot.status]
+    const startTime = hourToTime(slot.startHour)
     try {
       await upsertStaffSlot({
         staffId,
@@ -138,10 +138,30 @@ export default function StaffSchedulePanel({ staffId }) {
         startHour: slot.startHour,
         status: nextStatus,
       })
+      setMonthData((prev) => {
+        const others = prev.slots.filter(
+          (row) => !(row.slot_date === selectedDateKey && row.start_time.startsWith(startTime.slice(0, 5))),
+        )
+        if (nextStatus === 'available') {
+          return { ...prev, slots: others }
+        }
+        return {
+          ...prev,
+          slots: [
+            ...others,
+            {
+              staff_id: staffId,
+              slot_date: selectedDateKey,
+              start_time: startTime,
+              status: nextStatus,
+            },
+          ],
+        }
+      })
       setNotice(`Updated ${slot.label} to ${nextStatus}.`)
-      await loadMonth()
     } catch (error) {
       setErrorMessage(error.message || 'Unable to update slot.')
+      await loadMonth({ silent: true })
     } finally {
       setSavingSlot(false)
     }
@@ -152,9 +172,18 @@ export default function StaffSchedulePanel({ staffId }) {
     setNotice('')
     setErrorMessage('')
     try {
-      await saveStaffDayNote(staffId, selectedDateKey, dayNote)
+      const saved = await saveStaffDayNote(staffId, selectedDateKey, dayNoteDraft)
+      setMonthData((prev) => {
+        const others = prev.notes.filter((note) => note.note_date !== selectedDateKey)
+        if (!saved.trim()) {
+          return { ...prev, notes: others }
+        }
+        return {
+          ...prev,
+          notes: [...others, { staff_id: staffId, note_date: selectedDateKey, notes: saved }],
+        }
+      })
       setNotice('Day note saved.')
-      await loadMonth()
     } catch (error) {
       setErrorMessage(error.message || 'Unable to save note.')
     } finally {
@@ -182,7 +211,7 @@ export default function StaffSchedulePanel({ staffId }) {
         </p>
       )}
 
-      {loading ? (
+      {initialLoading ? (
         <p className="text-sm text-slate-500">Loading schedule…</p>
       ) : (
         <>
@@ -231,8 +260,8 @@ export default function StaffSchedulePanel({ staffId }) {
               <textarea
                 id="staff-day-note"
                 rows={3}
-                value={dayNote}
-                onChange={(event) => setDayNote(event.target.value)}
+                value={dayNoteDraft}
+                onChange={(event) => setDayNoteDraft(event.target.value)}
                 placeholder="Add reminders or session prep notes…"
                 className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100"
               />

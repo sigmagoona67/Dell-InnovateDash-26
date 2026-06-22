@@ -6,6 +6,15 @@ function db() {
   return requireInsforge().database
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function assertUuid(value, label) {
+  if (!value || value === 'undefined' || !UUID_PATTERN.test(String(value))) {
+    throw new Error(`${label} is missing. Please refresh and try again.`)
+  }
+  return String(value)
+}
+
 function isMissingTableError(error) {
   if (!error) return false
   const message = String(error.message || error.details || error.hint || '').toLowerCase()
@@ -48,6 +57,7 @@ function slotKey(slotDate, startTime) {
 }
 
 export async function getStaffScheduleForMonth(staffId, year, month) {
+  assertUuid(staffId, 'Staff profile')
   const { start, end } = monthRange(year, month)
   const [slots, notes] = await Promise.all([
     safeQuery(
@@ -80,6 +90,7 @@ export async function getStaffScheduleForMonth(staffId, year, month) {
 }
 
 export async function getStaffDayNote(staffId, dateKey) {
+  assertUuid(staffId, 'Staff profile')
   const data = await safeQuery(
     db()
       .from('staff_schedule_day_notes')
@@ -93,6 +104,7 @@ export async function getStaffDayNote(staffId, dateKey) {
 }
 
 export async function saveStaffDayNote(staffId, dateKey, notes) {
+  assertUuid(staffId, 'Staff profile')
   const trimmed = notes.trim()
   if (!trimmed) {
     await safeQuery(
@@ -125,6 +137,8 @@ export async function upsertStaffSlot({
   youthId = null,
   notes = null,
 }) {
+  assertUuid(staffId, 'Staff profile')
+  if (youthId) assertUuid(youthId, 'Youth profile')
   const startTime = hourToTime(startHour)
   const endTime = hourToEndTime(startHour)
   const payload = {
@@ -176,6 +190,7 @@ export function mergeStaffDaySlots(slotDate, storedSlots = []) {
 }
 
 export async function getYouthFreeSlotsForMonth(youthId, year, month) {
+  assertUuid(youthId, 'Youth profile')
   const { start, end } = monthRange(year, month)
   const data = await safeQuery(
     db()
@@ -192,6 +207,7 @@ export async function getYouthFreeSlotsForMonth(youthId, year, month) {
 }
 
 export async function toggleYouthFreeSlot(youthId, slotDate, startHour) {
+  assertUuid(youthId, 'Youth profile')
   const startTime = hourToTime(startHour)
   const { data: existing, error: findError } = await db()
     .from('youth_free_slots')
@@ -230,7 +246,49 @@ export function mergeYouthFreeDaySlots(slotDate, storedSlots = []) {
   }))
 }
 
+export function isVisibleConsultationRequest(request) {
+  return request?.status !== 'withdrawn' && request?.status !== 'cancelled'
+}
+
+export function getRequestStatusLabel(request) {
+  if (request.status === 'withdrawn') return 'Withdrawn'
+  if (request.status === 'pending' && request.initiated_by === 'staff') return 'Staff requested'
+  if (request.status === 'pending' && request.initiated_by === 'youth') return 'Pending'
+  return request.status
+}
+
+async function youthHasFreeSlot(youthId, slotDate, startHour) {
+  const startTime = hourToTime(startHour)
+  const { data, error } = await db()
+    .from('youth_free_slots')
+    .select('id')
+    .eq('youth_id', youthId)
+    .eq('slot_date', slotDate)
+    .eq('start_time', startTime)
+    .maybeSingle()
+
+  if (error) throw error
+  return Boolean(data?.id)
+}
+
+async function releaseBookedSlot(request) {
+  if (!request.staff_slot_id) {
+    const startHour = Number(normalizeTime(request.start_time).slice(0, 2))
+    await deleteStaffSlot(request.staff_id, request.slot_date, startHour)
+    return
+  }
+
+  const { error } = await db()
+    .from('staff_schedule_slots')
+    .update({ status: 'available', youth_id: null })
+    .eq('id', request.staff_slot_id)
+
+  if (error && !isMissingTableError(error)) throw error
+}
+
 export async function getConsultationRequestsForStaff(staffId, { youthId = null, status = null } = {}) {
+  assertUuid(staffId, 'Staff profile')
+  if (youthId) assertUuid(youthId, 'Youth profile')
   let query = db()
     .from('consultation_requests')
     .select('*')
@@ -246,6 +304,7 @@ export async function getConsultationRequestsForStaff(staffId, { youthId = null,
 }
 
 export async function getConsultationRequestsForYouth(youthId) {
+  assertUuid(youthId, 'Youth profile')
   const data = await safeQuery(
     db()
       .from('consultation_requests')
@@ -264,6 +323,8 @@ export async function createConsultationRequest({
   startHour,
   message = '',
 }) {
+  assertUuid(youthId, 'Youth profile')
+  assertUuid(staffId, 'Staff profile')
   const startTime = hourToTime(startHour)
   const payload = {
     youth_id: youthId,
@@ -273,11 +334,99 @@ export async function createConsultationRequest({
     end_time: hourToEndTime(startHour),
     message: message.trim() || null,
     status: 'pending',
+    initiated_by: 'youth',
   }
 
   const { data, error } = await db().from('consultation_requests').insert([payload]).select('*').single()
   if (error) throw error
   return data
+}
+
+export async function createStaffMeetingRequest({
+  youthId,
+  staffId,
+  slotDate,
+  startHour,
+  message = '',
+}) {
+  assertUuid(youthId, 'Youth profile')
+  assertUuid(staffId, 'Staff profile')
+
+  const hasFreeSlot = await youthHasFreeSlot(youthId, slotDate, startHour)
+  if (!hasFreeSlot) {
+    throw new Error('The student is not free at this time anymore.')
+  }
+
+  const startTime = hourToTime(startHour)
+  const payload = {
+    youth_id: youthId,
+    staff_id: staffId,
+    slot_date: slotDate,
+    start_time: startTime,
+    end_time: hourToEndTime(startHour),
+    message: message.trim() || null,
+    status: 'pending',
+    initiated_by: 'staff',
+  }
+
+  const { data, error } = await db().from('consultation_requests').insert([payload]).select('*').single()
+  if (error) throw error
+  return data
+}
+
+export async function withdrawConsultationRequest(requestId) {
+  assertUuid(requestId, 'Consultation request')
+  const { data, error } = await db()
+    .from('consultation_requests')
+    .update({ status: 'withdrawn' })
+    .eq('id', requestId)
+    .eq('status', 'pending')
+    .select('*')
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) throw new Error('This request cannot be withdrawn.')
+  return data
+}
+
+/** @deprecated Use withdrawConsultationRequest for pending, cancelAcceptedConsultation for accepted */
+export async function cancelConsultationRequest(requestId) {
+  return withdrawConsultationRequest(requestId)
+}
+
+export async function cancelAcceptedConsultation(requestId) {
+  assertUuid(requestId, 'Consultation request')
+  const { data: request, error: fetchError } = await db()
+    .from('consultation_requests')
+    .select('*')
+    .eq('id', requestId)
+    .single()
+
+  if (fetchError) throw fetchError
+  if (request.status !== 'accepted') {
+    throw new Error('Only confirmed meetings can be cancelled this way.')
+  }
+
+  await releaseBookedSlot(request)
+
+  const { data, error } = await db()
+    .from('consultation_requests')
+    .update({ status: 'withdrawn' })
+    .eq('id', requestId)
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export function buildPendingRequestMap(requests = []) {
+  const map = new Map()
+  for (const request of requests) {
+    if (request.status !== 'pending') continue
+    map.set(`${request.slot_date}|${normalizeTime(request.start_time).slice(0, 5)}`, request)
+  }
+  return map
 }
 
 export async function respondToConsultationRequest(requestId, accept) {
@@ -310,10 +459,15 @@ export async function respondToConsultationRequest(requestId, accept) {
       youthId: request.youth_id,
     })
 
-    await db()
+    const { data: linked, error: linkError } = await db()
       .from('consultation_requests')
       .update({ staff_slot_id: slot.id || null })
       .eq('id', requestId)
+      .select('*')
+      .single()
+
+    if (linkError) throw linkError
+    return linked
   }
 
   return updated
@@ -340,6 +494,7 @@ export function getMarkedDaysFromNotes(notes = []) {
 export function getMarkedDaysFromRequests(requests = []) {
   const days = new Set()
   for (const request of requests) {
+    if (!isVisibleConsultationRequest(request)) continue
     days.add(Number(request.slot_date.split('-')[2]))
   }
   return [...days]

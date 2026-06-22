@@ -18,17 +18,10 @@ export default function StaffDashboardHome() {
   const loadDashboard = useCallback(async () => {
     setLoading(true)
     setErrorMessage('')
-    console.log('StaffDashboard: loading dashboard...')
     try {
       const data = await getStaffDashboard()
-      console.log('StaffDashboard: dashboard loaded', {
-        pendingCount: data.pending?.length ?? 0,
-        pendingDebug: data.pendingDebug,
-        pending: data.pending,
-      })
       setDashboard(data)
     } catch (error) {
-      console.log('StaffDashboard: dashboard error:', error)
       setErrorMessage(error.message || 'Unable to load dashboard.')
     } finally {
       setLoading(false)
@@ -54,7 +47,7 @@ export default function StaffDashboardHome() {
   }
 
   const staffName = dashboard?.staff?.display_name || context?.staffProfile?.display_name || 'Staff'
-  const staffId = context?.staffProfile?.id
+  const staffId = dashboard?.staff?.id || context?.staffProfile?.id
 
   return (
     <div className="relative isolate min-h-dvh overflow-hidden bg-white">
