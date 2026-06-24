@@ -328,14 +328,24 @@ Return ONLY valid JSON:
   "reply": "full caring message — same depth in English or Chinese",
   "summary": "one English sentence for staff",
   "riskLevel": "low | medium | high",
+  "crisisDetected": false,
   "syncNote": "",
   "escalationNeeded": false,
   "escalationResources": []
 }
 
-SAFETY:
-- Physical abuse, self-harm, suicide, bullying → riskLevel "high"; escalationNeeded true; 2–3 escalationResources IN ENGLISH.
-- Stay warm. Never cold refusal. syncNote always "".`
+SAFETY RISK ASSESSMENT (required every reply — semantic understanding, NOT keyword matching):
+- Read the FULL latest message for emotional intensity, intent, implied meaning, context, and escalation trajectory — including indirect, metaphorical, or coded language (e.g. "I don't want to be here anymore", "nothing matters", "they hurt me", "I can't take it", vague hopelessness).
+- Do NOT rely on explicit crisis keywords alone. Assess risk from meaning even when the youth uses casual or understated wording.
+- riskLevel:
+  • low — ordinary stress, mild sadness, everyday concerns without safety implications
+  • medium — significant distress, hopelessness, conflict, bullying, or emotional overwhelm without imminent danger
+  • high — self-harm or suicide ideation/intent, abuse, violence, imminent danger, or any crisis-level safety concern
+- crisisDetected: true ONLY when riskLevel is "high"
+- escalationNeeded: true ONLY when riskLevel is "high" (the app shows 24-hour support resources separately — do NOT paste hotline numbers into "reply")
+- escalationResources: always [] (resources are appended by the app UI, not in your reply)
+- Keep "reply" calm, supportive, and non-judgmental. Gently encourage reaching immediate support if they may be in danger. Never cold refusal.
+- syncNote always ""`
 
   if (mode === 'mood') {
     prompt += `\n\nMOOD CHECK-IN: respond warmly with the SAME depth as a normal chat reply — NOT a one-line generic invitation.
@@ -2728,22 +2738,32 @@ async function saveQuickRiskLevelOnly(
   client,
   youthId: string,
   riskLevel = 'low',
+  crisisDetected = false,
 ) {
   const writeClient = getServiceClient()
   const { data: existing, error: readError } = await writeClient.database
     .from('ai_dynamic_insights')
-    .select('id, risk_level')
+    .select('id, risk_level, crisis_detected')
     .eq('youth_id', youthId)
     .maybeSingle()
 
   if (readError || !existing) return existing || null
 
   const nextRisk = pickHigherRisk(String(existing.risk_level || 'low'), riskLevel || 'low')
-  if (nextRisk === existing.risk_level) return existing
+  const nextCrisis = Boolean(existing.crisis_detected) || crisisDetected
+  if (nextRisk === existing.risk_level && nextCrisis === Boolean(existing.crisis_detected)) return existing
+
+  const updatePayload: Record<string, unknown> = { risk_level: nextRisk }
+  if (nextCrisis && !existing.crisis_detected) {
+    updatePayload.crisis_detected = true
+    updatePayload.last_crisis_at = new Date().toISOString()
+  } else if (nextCrisis) {
+    updatePayload.crisis_detected = true
+  }
 
   const { data: saved, error: updateError } = await writeClient.database
     .from('ai_dynamic_insights')
-    .update({ risk_level: nextRisk })
+    .update(updatePayload)
     .eq('youth_id', youthId)
     .select('*')
     .maybeSingle()
@@ -2755,10 +2775,38 @@ async function saveQuickRiskLevelOnly(
   return saved || existing
 }
 
+async function saveSessionCrisisFlag(
+  client,
+  sessionId: string,
+  { riskLevel, crisisDetected }: { riskLevel: string; crisisDetected: boolean },
+) {
+  if (!crisisDetected) return
+  const { error } = await client.database
+    .from('ai_chat_sessions')
+    .update({ crisis_detected: true, risk_level: riskLevel })
+    .eq('id', sessionId)
+  if (error) {
+    console.error('[youth-ai-chat] session crisis flag update failed:', error.message)
+  }
+}
+
 const RISK_ORDER = { low: 0, medium: 1, high: 2 }
 
 function pickHigherRisk(a: string, b: string) {
   return (RISK_ORDER[a] ?? 0) >= (RISK_ORDER[b] ?? 0) ? a : b
+}
+
+function normalizeSafetyAssessment(
+  baseRisk: string,
+  parsed: { riskLevel?: string; crisisDetected?: boolean; escalationNeeded?: boolean } = {},
+) {
+  const parsedRisk = ['low', 'medium', 'high'].includes(String(parsed.riskLevel || ''))
+    ? String(parsed.riskLevel)
+    : 'low'
+  const riskLevel = pickHigherRisk(baseRisk || 'low', parsedRisk)
+  const crisisDetected = riskLevel === 'high' || Boolean(parsed.crisisDetected)
+  const escalationNeeded = crisisDetected || Boolean(parsed.escalationNeeded)
+  return { riskLevel, crisisDetected, escalationNeeded }
 }
 
 async function syncInsightsAfterChat(
@@ -2908,9 +2956,10 @@ export default async function handler(req) {
       let reply = MOOD_REPLIES[mood] || MOOD_REPLIES.Okay
       let summary = `Mood check-in recorded (${mood}).`
       let riskLevel = 'low'
+      let crisisDetected = false
       let escalationNeeded = false
-      let escalationResources: string[] = []
       let model = 'mood-check-in-fallback'
+      let aiParsed: { riskLevel?: string; crisisDetected?: boolean; escalationNeeded?: boolean } = {}
 
       try {
         const moodMessages = [
@@ -2918,24 +2967,34 @@ export default async function handler(req) {
           { role: 'user', content: `Today's mood check-in: ${mood}. Youth message: "${moodLine}"` },
         ]
         const { parsed, model: usedModel } = await callChatGptWithTimeout(moodMessages, 'mood', 18000)
+        aiParsed = parsed
         const moodCandidate = String(parsed.reply || '').trim()
         if (moodCandidate && !isGenericShortReply(moodCandidate) && moodCandidate.length >= 80) {
           reply = moodCandidate
         }
         summary = parsed.summary || summary
-        riskLevel = ['low', 'medium', 'high'].includes(parsed.riskLevel) ? parsed.riskLevel : 'low'
-        escalationNeeded = Boolean(parsed.escalationNeeded)
-        escalationResources = Array.isArray(parsed.escalationResources)
-          ? parsed.escalationResources.filter(Boolean).map(String)
-          : []
         model = usedModel
       } catch (moodAiError) {
         console.error('[youth-ai-chat] mood AI failed, using fallback:', moodAiError.message)
       }
 
+      ;({ riskLevel, crisisDetected, escalationNeeded } = normalizeSafetyAssessment('low', aiParsed))
+
       await client.database.from('ai_messages').insert([
         { session_id: sessionId, youth_id: ctx.youth.id, sender: 'ai', message: reply },
       ])
+
+      await client.database.from('ai_chat_sessions').update({
+        risk_level: riskLevel,
+        ...(crisisDetected ? { crisis_detected: true } : {}),
+      }).eq('id', sessionId)
+
+      try {
+        await saveSessionCrisisFlag(client, sessionId, { riskLevel, crisisDetected })
+        await saveQuickRiskLevelOnly(client, ctx.youth.id, riskLevel, crisisDetected)
+      } catch (riskError) {
+        console.error('[youth-ai-chat] recordMood crisis/risk update failed:', (riskError as Error).message)
+      }
 
       try {
         await finishSessionAfterReply(client, {
@@ -2955,8 +3014,9 @@ export default async function handler(req) {
         reply,
         summary,
         riskLevel,
+        crisisDetected,
         escalationNeeded,
-        escalationResources,
+        escalationResources: [],
         staffName: chatCtx.staffName,
         insights: null,
         insightsSyncError: null,
@@ -2997,20 +3057,16 @@ export default async function handler(req) {
         let reply = buildQuickFallbackReply(trimmed)
         let summary = buildStaffSummaryFromMessage(trimmed)
         let riskLevel = inferRiskFromTranscript(history || []) || 'low'
-        let escalationNeeded = riskLevel === 'high'
-        let escalationResources: string[] = escalationNeeded
-          ? [
-              'Your youth worker can discuss this with you tomorrow.',
-              'Consider contacting the local crisis line for immediate support.',
-              'If you feel unsafe, local emergency services are there to help.',
-            ]
-          : []
+        let crisisDetected = false
+        let escalationNeeded = false
         let model = 'local-fallback'
         let replySource = 'fallback'
+        let aiParsed: { riskLevel?: string; crisisDetected?: boolean; escalationNeeded?: boolean } = {}
 
         try {
           let aiResult = await callChatGptWithTimeout(chatMessages, 'chat', 20000)
           let parsed = aiResult.parsed
+          aiParsed = parsed
           let candidate = String(parsed.reply || '').trim()
 
           if (isReplyTooShort(trimmed, candidate) || isGenericShortReply(candidate)) {
@@ -3051,10 +3107,6 @@ export default async function handler(req) {
           summary = parsed.summary || buildStaffSummaryFromMessage(trimmed)
           const parsedRisk = ['low', 'medium', 'high'].includes(parsed.riskLevel) ? parsed.riskLevel : 'low'
           riskLevel = pickHigherRisk(riskLevel, parsedRisk)
-          escalationNeeded = Boolean(parsed.escalationNeeded) || riskLevel === 'high'
-          escalationResources = Array.isArray(parsed.escalationResources)
-            ? parsed.escalationResources.filter(Boolean).map(String)
-            : escalationResources
         } catch (chatError) {
           console.error('[youth-ai-chat] sendMessage ChatGPT failed, using fallback:', chatError.message)
           reply = finalizeReply(trimmed, buildQuickFallbackReply(trimmed))
@@ -3062,8 +3114,9 @@ export default async function handler(req) {
           if (/想自杀|自杀|自伤/i.test(trimmed)) riskLevel = 'high'
           else if (/霸凌|bully|扔东西|欺负|跟踪/i.test(trimmed)) riskLevel = 'high'
           else if (/吵架|压力|难过|sad|stress|崩溃/i.test(trimmed)) riskLevel = 'medium'
-          escalationNeeded = riskLevel === 'high'
         }
+
+        ;({ riskLevel, crisisDetected, escalationNeeded } = normalizeSafetyAssessment(riskLevel, aiParsed))
 
         await client.database.from('ai_messages').insert([
           { session_id: sessionId, youth_id: ctx.youth.id, sender: 'ai', message: reply },
@@ -3072,10 +3125,12 @@ export default async function handler(req) {
         await client.database.from('ai_chat_sessions').update({
           ai_summary: summary,
           risk_level: riskLevel,
+          ...(crisisDetected ? { crisis_detected: true } : {}),
         }).eq('id', sessionId)
 
         try {
-          await saveQuickRiskLevelOnly(client, ctx.youth.id, riskLevel)
+          await saveSessionCrisisFlag(client, sessionId, { riskLevel, crisisDetected })
+          await saveQuickRiskLevelOnly(client, ctx.youth.id, riskLevel, crisisDetected)
         } catch (riskError) {
           console.error('[youth-ai-chat] sendMessage risk update failed:', (riskError as Error).message)
         }
@@ -3097,8 +3152,9 @@ export default async function handler(req) {
           reply,
           summary,
           riskLevel,
+          crisisDetected,
           escalationNeeded,
-          escalationResources,
+          escalationResources: [],
           staffName: chatCtx.staffName,
           insights: null,
           insightsSyncError: null,
@@ -3108,6 +3164,10 @@ export default async function handler(req) {
       } catch (sendError) {
         console.error('[youth-ai-chat] sendMessage fatal, returning fallback:', sendError.message)
         const reply = buildQuickFallbackReply(trimmed)
+        let fallbackRisk = inferRiskFromTranscript([{ sender: 'youth', message: trimmed }]) || 'medium'
+        if (/想自杀|自杀|自伤/i.test(trimmed)) fallbackRisk = 'high'
+        else if (/霸凌|bully|扔东西|欺负|跟踪/i.test(trimmed)) fallbackRisk = 'high'
+        const { riskLevel: finalRisk, crisisDetected, escalationNeeded } = normalizeSafetyAssessment(fallbackRisk, {})
         try {
           await client.database.from('ai_messages').insert([
             { session_id: sessionId, youth_id: ctx.youth.id, sender: 'ai', message: reply },
@@ -3118,8 +3178,9 @@ export default async function handler(req) {
         return jsonResponse({
           reply,
           summary: 'Youth checked in with AI companion (fallback).',
-          riskLevel: inferRiskFromTranscript([{ sender: 'youth', message: trimmed }]) || 'medium',
-          escalationNeeded: /霸凌|bully|扔东西|欺负|跟踪/i.test(trimmed),
+          riskLevel: finalRisk,
+          crisisDetected,
+          escalationNeeded,
           escalationResources: [],
           staffName: chatCtx.staffName,
           model: 'local-fallback',

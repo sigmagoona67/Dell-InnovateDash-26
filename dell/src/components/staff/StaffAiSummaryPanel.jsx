@@ -42,7 +42,6 @@ export default function StaffAiSummaryPanel({
       </div>
       <EditableSection
         title="Session summary"
-        hint="Professional case impression from this interaction"
         value={displaySummary || ''}
         staffEdited={staffEdited}
         disabled={!canSaveEdits || loading}

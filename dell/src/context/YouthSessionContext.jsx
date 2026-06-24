@@ -28,12 +28,12 @@ export function YouthSessionProvider({ children }) {
     } catch (error) {
       console.error('[youth-auth] session refresh failed:', error)
       const classified = classifySetupError(error)
-      setState({
+      setState((prev) => ({
         loading: false,
         error,
         setupError: classified,
-        context: null,
-      })
+        context: silent && prev.context ? prev.context : null,
+      }))
     }
   }, [])
 
@@ -71,16 +71,21 @@ export function YouthAuthGate({ children }) {
   }
 
   if (setupError && isBlockingSetupError(setupError)) {
-    return <SetupErrorPage classified={setupError} onRetry={refresh} />
+    return <SetupErrorPage classified={setupError} onRetry={() => refresh()} />
   }
 
-  if ((error || !context) && (!setupError || isAuthSetupError(setupError))) {
+  if (!context && setupError && isAuthSetupError(setupError)) {
     console.log('[youth-auth] auth gate redirect to /youth-auth:', error?.message)
     return <Navigate to="/youth-auth" replace state={{ from: location.pathname }} />
   }
 
-  if (error || !context) {
-    return <SetupErrorPage classified={setupError || classifySetupError(error)} onRetry={refresh} />
+  if (!context) {
+    return (
+      <SetupErrorPage
+        classified={setupError || classifySetupError(error)}
+        onRetry={() => refresh()}
+      />
+    )
   }
 
   return children

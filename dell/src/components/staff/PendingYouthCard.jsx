@@ -35,6 +35,21 @@ export default function PendingYouthCard({ youth, onAssign, assigning, hideViewD
         <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{youth.casePreview}</p>
       </div>
 
+<<<<<<< Updated upstream
+=======
+      {matchedFactors.length > 0 && (
+        <div className="mt-4">
+          <p className="text-sm font-semibold text-slate-900">Best Match</p>
+          <p className="mt-1.5 text-sm leading-snug text-slate-600">
+            {matchedFactors.join(' • ')}
+          </p>
+          {compatibility?.matchExplanation && (
+            <p className="mt-1.5 text-sm leading-snug text-slate-500">{compatibility.matchExplanation}</p>
+          )}
+        </div>
+      )}
+
+>>>>>>> Stashed changes
       <div className="mt-5 flex flex-wrap gap-2">
         <button
           type="button"

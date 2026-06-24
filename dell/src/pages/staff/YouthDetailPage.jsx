@@ -3,12 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom'
 import CaseTimelineTab from '../../components/staff/CaseTimelineTab'
 import CharacteristicsTab from '../../components/staff/CharacteristicsTab'
 import OfflineSessionTab from '../../components/staff/OfflineSessionTab'
+import YouthScheduleTab from '../../components/staff/YouthScheduleTab'
 import StaffSidebar from '../../components/staff/StaffSidebar'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
 import { useStaffSession } from '../../context/StaffSessionContext'
 import { resolveCurrentConcern, resolveCasePreview } from '../../lib/dashboardCard'
 import { resolveYouthRiskLevel } from '../../lib/riskResolver'
-import { assignYouthToMe, canStaffEditYouth, getYouthDetail } from '../../services/staffService'
+import { assignYouthToMe, canStaffEditYouth, getYouthDetail, markYouthScheduleViewed, markYouthTimelineViewed } from '../../services/staffService'
 
 export default function YouthDetailPage() {
   const { youthId } = useParams()
@@ -21,8 +22,10 @@ export default function YouthDetailPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [dataVersion, setDataVersion] = useState(0)
 
-  const loadDetail = useCallback(async () => {
-    setLoading(true)
+  const loadDetail = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true)
+    }
     setErrorMessage('')
     try {
       const data = await getYouthDetail(youthId)
@@ -30,7 +33,9 @@ export default function YouthDetailPage() {
     } catch (error) {
       setErrorMessage(error.message || 'Unable to load youth details.')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [youthId])
 
@@ -39,20 +44,37 @@ export default function YouthDetailPage() {
   }, [loadDetail])
 
   useEffect(() => {
+    if (activeTab !== 'timeline' || !youthId) return
+    markYouthTimelineViewed(youthId).catch(() => {})
+  }, [activeTab, youthId])
+
+  useEffect(() => {
+    if (activeTab !== 'schedule' || !youthId || detail?.isPending) return
+    markYouthScheduleViewed(youthId).catch(() => {})
+  }, [activeTab, youthId, detail?.isPending])
+
+  useEffect(() => {
+    let timeoutId
     function handleFocus() {
-      loadDetail()
-      setDataVersion((value) => value + 1)
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        loadDetail({ silent: true })
+        setDataVersion((value) => value + 1)
+      }, 250)
     }
 
     window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
+    return () => {
+      clearTimeout(timeoutId)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [loadDetail])
 
   async function handleAssign() {
     setAssigning(true)
     try {
       await assignYouthToMe(youthId)
-      await loadDetail()
+      await loadDetail({ silent: true })
       setDataVersion((v) => v + 1)
     } catch (error) {
       setErrorMessage(error.message || 'Unable to assign youth.')
@@ -66,7 +88,7 @@ export default function YouthDetailPage() {
   const staffProfileId = context?.staffProfile?.id
   const canManageCase = detail ? canStaffEditYouth(detail.youth, staffProfileId) : false
 
-  if (loading) {
+  if (loading && !detail) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-white px-6">
         <p className="text-slate-600">Loading case details…</p>
@@ -100,8 +122,9 @@ export default function YouthDetailPage() {
       <div className="relative z-10 flex flex-1 flex-col">
         <div className="flex gap-2 overflow-x-auto border-b border-slate-100 bg-white px-4 py-2 lg:hidden">
           {[
-            { id: 'characteristics', label: '🧩 Youth Overview' },
+            { id: 'characteristics', label: '🧩 Characteristics' },
             { id: 'timeline', label: '📅 Timeline' },
+            { id: 'schedule', label: '🗓️ Schedule' },
             { id: 'offline', label: '📝 Offline' },
           ].map((item) => (
             <button
@@ -168,11 +191,21 @@ export default function YouthDetailPage() {
               canEdit={canManageCase}
             />
           )}
+          {activeTab === 'schedule' && (
+            <YouthScheduleTab
+              detail={detail}
+              staffId={staffProfileId}
+              onUpdated={() => {
+                loadDetail({ silent: true })
+                setDataVersion((v) => v + 1)
+              }}
+            />
+          )}
           {activeTab === 'offline' && (
             <OfflineSessionTab
               detail={detail}
               onUpdated={() => {
-                loadDetail()
+                loadDetail({ silent: true })
                 setDataVersion((v) => v + 1)
               }}
             />

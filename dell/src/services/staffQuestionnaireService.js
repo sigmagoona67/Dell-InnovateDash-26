@@ -156,3 +156,9 @@ export async function reconcileStaffOnboardingStatus(staffRecord, questionnaire)
   if (error) throw error
   return { staffRecord: data, onboardingComplete }
 }
+
+export function summarizeInterests(interests = []) {
+  const items = asStringArray(interests)
+  if (!items.length) return ''
+  return items.slice(0, 5).join(', ')
+}

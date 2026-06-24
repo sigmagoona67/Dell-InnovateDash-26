@@ -1,6 +1,41 @@
 import { upsertAppProfileAfterAuth } from './profileService'
+<<<<<<< Updated upstream
+=======
+import { requireInsforge } from './insforgeClient'
+import {
+  applyAuthSessionToClient,
+  clearPersistedAuthSession,
+  readPersistedAuthSession,
+  refreshAuthSessionWithToken,
+  validateStoredAccessToken,
+  writePersistedAuthSession,
+} from './authPersistence'
+import { clearStaffBootstrapCache } from './staffBootstrapCache'
+import { STAFF_ACCESS_CODE } from './staffAccessConfig'
+>>>>>>> Stashed changes
 
 const ROLE_CACHE_PREFIX = 'carebridge-role:'
+
+let memoryAuthUser = null
+
+export function clearAuthSessionState(client) {
+  memoryAuthUser = null
+  clearPersistedAuthSession()
+  clearStaffBootstrapCache()
+  const insforge = client || requireInsforge()
+  insforge?.auth?.signOut?.().catch(() => {})
+}
+
+export function persistAuthSessionFromSignIn(data) {
+  if (!data?.accessToken) return
+  writePersistedAuthSession({
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    user: data.user,
+  })
+  memoryAuthUser = data.user || null
+  applyAuthSessionToClient(requireInsforge(), data)
+}
 
 export const INSFORGE_DISABLE_VERIFICATION_HINT =
   'For demo sign-in, disable email verification in InsForge Authentication settings, or run: npx @insforge/cli config apply --auto-approve'
@@ -44,6 +79,17 @@ export function parseAuthError(error) {
     return error.message
   }
 
+  if (
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('aborted') ||
+    message.includes('fetch failed') ||
+    message.includes('failed to fetch') ||
+    message.includes('network')
+  ) {
+    return 'Connection timed out. Check your network or VPN, then try again.'
+  }
+
   return error.message || 'Authentication failed. Please try again.'
 }
 
@@ -77,6 +123,11 @@ async function resolveUserRole(insforge, { data, role, email }) {
   const pendingRole = getPendingRole(email)
   const existingName = data?.user?.profile?.name
 
+  if (signedInRole === role) {
+    clearPendingRole(email)
+    return role
+  }
+
   if (!signedInRole && pendingRole) {
     const { error: setRoleError } = await insforge.auth.setProfile(
       buildAuthProfilePayload({ role: pendingRole, email, name: existingName }),
@@ -98,7 +149,7 @@ async function resolveUserRole(insforge, { data, role, email }) {
   }
 
   if (signedInRole && signedInRole !== role) {
-    await insforge.auth.signOut()
+    clearAuthSessionState(insforge)
     throw new Error(
       `Role mismatch. This account is registered as ${signedInRole}. Please use the correct portal.`,
     )
@@ -107,21 +158,96 @@ async function resolveUserRole(insforge, { data, role, email }) {
   return signedInRole || role
 }
 
+export async function ensureAuthSession(insforge) {
+  const client = insforge || requireInsforge()
+
+  function userFrom(result) {
+    return result?.data?.user ?? null
+  }
+
+  function isTransientAuthError(error) {
+    if (!error) return false
+    const text = String(error.message || error.code || '').toLowerCase()
+    return (
+      text.includes('fetch failed') ||
+      text.includes('failed to fetch') ||
+      text.includes('network') ||
+      text.includes('timeout') ||
+      text.includes('timed out')
+    )
+  }
+
+  if (memoryAuthUser) {
+    applyAuthSessionToClient(client, readPersistedAuthSession())
+    return memoryAuthUser
+  }
+
+  const persisted = readPersistedAuthSession()
+  if (persisted?.accessToken || persisted?.refreshToken) {
+    applyAuthSessionToClient(client, persisted)
+  }
+
+  if (persisted?.accessToken) {
+    const user = await validateStoredAccessToken(client, persisted.accessToken)
+    if (user) {
+      memoryAuthUser = user
+      writePersistedAuthSession({ ...persisted, user })
+      return user
+    }
+  }
+
+  if (persisted?.refreshToken) {
+    const refreshed = await refreshAuthSessionWithToken(client, persisted.refreshToken)
+    if (refreshed?.user) {
+      memoryAuthUser = refreshed.user
+      return refreshed.user
+    }
+  }
+
+  if (persisted?.accessToken) {
+    clearPersistedAuthSession()
+  }
+
+  let result = await client.auth.getCurrentUser()
+  if (result.error && !isTransientAuthError(result.error)) throw result.error
+  if (userFrom(result)) {
+    memoryAuthUser = userFrom(result)
+    return memoryAuthUser
+  }
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 150 * attempt))
+    const refreshed = await client.auth.refreshSession()
+    if (refreshed.error && !isTransientAuthError(refreshed.error)) break
+    if (refreshed.data?.user) {
+      memoryAuthUser = refreshed.data.user
+      writePersistedAuthSession({
+        accessToken: refreshed.data.accessToken,
+        refreshToken: refreshed.data.refreshToken,
+        user: refreshed.data.user,
+      })
+      return refreshed.data.user
+    }
+
+    result = await client.auth.getCurrentUser()
+    if (result.error && !isTransientAuthError(result.error)) throw result.error
+    if (userFrom(result)) {
+      memoryAuthUser = userFrom(result)
+      return memoryAuthUser
+    }
+  }
+
+  return null
+}
+
 export async function loginWithRole(insforge, { email, password, role }) {
   const { data, error } = await insforge.auth.signInWithPassword({ email, password })
   if (error) throw error
 
+  persistAuthSessionFromSignIn(data)
   await resolveUserRole(insforge, { data, role, email })
 
-  if (role === 'youth' || role === 'staff') {
-    await upsertAppProfileAfterAuth({
-      authUserId: data.user.id,
-      email,
-      role,
-      name: data.user?.profile?.name,
-    })
-  }
-
+  // Profile rows are created during session bootstrap after redirect (faster login).
   return data
 }
 
@@ -142,6 +268,7 @@ export async function signUpWithRole(insforge, { email, password, role, name }) 
       role,
       name: trimmedName,
     })
+    persistAuthSessionFromSignIn(data)
     return { kind: 'session', data }
   }
 
@@ -154,6 +281,7 @@ export async function signUpWithRole(insforge, { email, password, role, name }) 
       role,
       name: trimmedName,
     })
+    persistAuthSessionFromSignIn(signInAttempt.data)
     return { kind: 'session', data: signInAttempt.data }
   }
 

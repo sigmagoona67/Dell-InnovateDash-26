@@ -17,7 +17,6 @@ export default function OfflineSessionSummaryView({
     <section className="space-y-4 rounded-2xl bg-amber-50/60 p-4">
       <EditableSection
         title="Session summary"
-        hint="Professional case impression from this interaction"
         value={summaryText || ''}
         staffEdited={Boolean(meta.ai_summary)}
         disabled={!canSaveEdits}

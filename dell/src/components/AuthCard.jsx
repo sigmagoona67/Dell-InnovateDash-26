@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   getVerificationGuidance,
   loginWithRole,
@@ -20,6 +20,11 @@ export default function AuthCard({ role, accent, loginDestination }) {
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo =
+    typeof location.state?.from === 'string' && location.state.from.startsWith('/')
+      ? location.state.from
+      : loginDestination
 
   const theme = useMemo(() => {
     if (accent === 'teal') {
@@ -99,7 +104,7 @@ export default function AuthCard({ role, accent, loginDestination }) {
       if (isLogin) {
         await loginWithRole(insforge, { email, password, role })
         setSuccessMessage('Login successful. Redirecting...')
-        navigate(loginDestination, { replace: true })
+        navigate(returnTo, { replace: true })
         return
       }
 
@@ -107,7 +112,7 @@ export default function AuthCard({ role, accent, loginDestination }) {
 
       if (result.kind === 'session') {
         setSuccessMessage('Account created successfully. Redirecting...')
-        navigate(loginDestination, { replace: true })
+        navigate(returnTo, { replace: true })
         return
       }
 
@@ -231,7 +236,7 @@ export default function AuthCard({ role, accent, loginDestination }) {
           disabled={loading}
           className={`w-full rounded-2xl px-6 py-3.5 text-base font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${theme.button}`}
         >
-          {loading ? 'Please wait...' : isLogin ? `Login as ${role}` : `Create ${role} account`}
+          {loading ? 'Signing in...' : isLogin ? `Login as ${role}` : `Create ${role} account`}
         </button>
       </form>
 

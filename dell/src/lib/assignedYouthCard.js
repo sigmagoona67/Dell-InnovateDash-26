@@ -1,4 +1,5 @@
 import { normalizeCareInsights } from './careInsights.js'
+import { APP_LOCALE } from './locale.js'
 
 function parseTs(value) {
   if (!value) return null
@@ -35,7 +36,7 @@ export function formatStaffActivityTime(isoString) {
   const startOfYesterday = new Date(startOfToday)
   startOfYesterday.setDate(startOfYesterday.getDate() - 1)
 
-  const timeStr = date.toLocaleString('en-SG', {
+  const timeStr = date.toLocaleString(APP_LOCALE, {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
@@ -43,7 +44,7 @@ export function formatStaffActivityTime(isoString) {
 
   if (date >= startOfToday) return `Today ${timeStr}`
   if (date >= startOfYesterday) return `Yesterday ${timeStr}`
-  return date.toLocaleString('en-SG', {
+  return date.toLocaleString(APP_LOCALE, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -105,10 +106,17 @@ function collectYouthActivityEvents({ messages = [], sessions = [], offlineSessi
   return events.sort((a, b) => b.at - a.at)
 }
 
-function resolveLastActivityLabel({ hasNew, latestUnread, latestOverall }) {
-  const pick = hasNew ? latestUnread : latestOverall
+function isNightHour(timestamp) {
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return false
+  const hour = date.getHours()
+  return hour >= 20 || hour < 6
+}
+
+function resolveLastActivityLabel({ hasUnread, latestUnread, latestOverall }) {
+  const pick = hasUnread ? latestUnread : latestOverall
   if (!pick) return { label: 'Last Update', kind: 'case' }
-  if (hasNew) {
+  if (hasUnread) {
     return pick.kind === 'ai'
       ? { label: 'Last AI Contact', kind: 'ai' }
       : { label: 'Last Update', kind: 'case' }
@@ -118,32 +126,34 @@ function resolveLastActivityLabel({ hasNew, latestUnread, latestOverall }) {
     : { label: 'Last Update', kind: 'case' }
 }
 
-/** Unread NEW badge + last activity line for assigned youth dashboard cards. */
+/** Night AI chat badge + last activity line for assigned youth dashboard cards. */
 export function buildAssignedYouthCardMeta({
   messages = [],
   sessions = [],
   offlineSessions = [],
   insights = null,
-  lastViewedAt = null,
+  lastTimelineViewedAt = null,
 } = {}) {
   const events = collectYouthActivityEvents({ messages, sessions, offlineSessions, insights })
-  const lastViewedTs = parseTs(lastViewedAt)
+  const lastViewedTs = parseTs(lastTimelineViewedAt)
   const latestOverall = events[0] || null
   const unreadEvents = events.filter((event) => !lastViewedTs || event.at > lastViewedTs)
+  const unreadNightAiEvents = unreadEvents.filter((event) => event.kind === 'ai' && isNightHour(event.at))
+  const hasNightAiChat = unreadNightAiEvents.length > 0
+  const hasUnread = unreadEvents.length > 0
   const latestUnread = unreadEvents[0] || null
-  const hasNew = unreadEvents.length > 0
 
   const { label: lastActivityLabel } = resolveLastActivityLabel({
-    hasNew,
+    hasUnread,
     latestUnread,
     latestOverall,
   })
 
-  const displayEvent = hasNew ? latestUnread : latestOverall
+  const displayEvent = hasUnread ? latestUnread : latestOverall
   const lastActivityAt = displayEvent ? new Date(displayEvent.at).toISOString() : null
 
   return {
-    hasNew,
+    hasNightAiChat,
     lastActivityLabel,
     lastActivityAt,
     lastActivityDisplay: formatStaffActivityTime(lastActivityAt),

@@ -1,3 +1,5 @@
+import { formatAppMonthYear } from '../../lib/locale'
+
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const MARKER_EMOJI = { ai: '🔵', offline: '🟡' }
@@ -22,10 +24,7 @@ export default function CaseTimelineCalendar({
 }) {
   const firstDay = new Date(year, month - 1, 1).getDay()
   const daysInMonth = new Date(year, month, 0).getDate()
-  const monthLabel = new Date(year, month - 1, 1).toLocaleString('en-SG', {
-    month: 'long',
-    year: 'numeric',
-  })
+  const monthLabel = formatAppMonthYear(year, month)
 
   const cells = []
   for (let i = 0; i < firstDay; i += 1) cells.push(null)

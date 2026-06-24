@@ -9,9 +9,29 @@ export default function AssignedYouthCard({ youth }) {
           <h3 className="truncate text-lg font-bold text-slate-900">{youth.nameLine || youth.name}</h3>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <RiskBadge level={youth.riskLevel} />
-            {youth.hasNew && (
-              <span className="rounded-full bg-sky-500 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                NEW
+            {youth.crisisDetected && (
+              <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-800">
+                Crisis alert
+              </span>
+            )}
+            {youth.hasNightAiChat && (
+              <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-800">
+                Night AI chat
+              </span>
+            )}
+            {youth.hasScheduleRequest && (
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
+                Schedule request
+              </span>
+            )}
+            {youth.scheduleResponse === 'accepted' && (
+              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                Meeting accepted
+              </span>
+            )}
+            {youth.scheduleResponse === 'declined' && (
+              <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-800">
+                Meeting declined
               </span>
             )}
           </div>

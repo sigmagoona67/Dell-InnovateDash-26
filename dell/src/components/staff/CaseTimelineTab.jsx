@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { requireInsforge } from '../../lib/insforgeClient'
 import { getSessionMessages, mapMessagesForUi } from '../../services/chatService'
 import { loadYouthInsights } from '../../services/insightsFallbackService'
-import { canStaffEditYouth } from '../../services/staffService'
+import { canStaffEditYouth, markYouthTimelineViewed } from '../../services/staffService'
 import CaseTimelineCalendar from './CaseTimelineCalendar'
 import OfflineSessionSummaryView from './OfflineSessionSummaryView'
 import RiskBadge from './RiskBadge'
@@ -197,7 +197,20 @@ export default function CaseTimelineTab({ detail, refreshKey = 0, staffProfileId
     const events = allEvents.filter((e) => e.session_date === date)
     setDayEvents(events)
     setSelectedEvent(events[0] || null)
+    if (youthId) {
+      markYouthTimelineViewed(youthId).catch(() => {})
+    }
   }
+
+  useEffect(() => {
+    if (!youthId || selectedDay != null || !allEvents.length) return
+    const latest = allEvents[0]
+    if (!latest?.session_date?.startsWith(monthPrefix)) return
+    const day = Number(latest.session_date.split('-')[2])
+    if (!Number.isFinite(day)) return
+    handleSelectDay(day)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-select once when timeline data loads
+  }, [youthId, allEvents, selectedDay, monthPrefix])
 
   return (
     <div className="space-y-6">
@@ -232,6 +245,11 @@ export default function CaseTimelineTab({ detail, refreshKey = 0, staffProfileId
                   {selectedEvent.type === 'ai' ? '🔵 AI Chat' : '🟡 Offline Counselling'} · {selectedEvent.session_date}
                 </h3>
                 <RiskBadge level={selectedEvent.risk_level || 'low'} />
+                {selectedEvent.type === 'ai' && selectedEvent.crisis_detected && (
+                  <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-800">
+                    Crisis detected
+                  </span>
+                )}
               </div>
 
               {dayEvents.length > 1 && (

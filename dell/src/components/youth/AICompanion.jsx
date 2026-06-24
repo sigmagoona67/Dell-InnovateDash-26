@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { MOODS } from '../../lib/youthMockData'
+import { shouldShowCrisisSupportPanel } from '../../lib/crisisSupportPanel'
 import { recordMood, sendChatMessage, syncProfileInsights } from '../../services/aiService'
 import {
   getOrCreateTodaySession,
   getSessionMessages,
   mapMessagesForUi,
 } from '../../services/chatService'
+import CrisisSupportPanel from './CrisisSupportPanel'
 
-function ChatBubble({ role, text, escalationResources }) {
+function ChatBubble({ role, text, showCrisisSupport }) {
   const isUser = role === 'user'
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -20,13 +22,7 @@ function ChatBubble({ role, text, escalationResources }) {
         `}
       >
         <p className="whitespace-pre-wrap">{text}</p>
-        {escalationResources?.length > 0 && (
-          <ul className="mt-3 space-y-1 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-800">
-            {escalationResources.map((item) => (
-              <li key={item}>• {item}</li>
-            ))}
-          </ul>
-        )}
+        {!isUser && showCrisisSupport && <CrisisSupportPanel />}
       </div>
     </div>
   )
@@ -45,7 +41,7 @@ function applyAiResultToMessage(result) {
   return {
     role: 'ai',
     text: result.reply,
-    escalationResources: result.escalationNeeded ? result.escalationResources || [] : [],
+    showCrisisSupport: shouldShowCrisisSupportPanel(result),
   }
 }
 
@@ -254,7 +250,7 @@ export default function AICompanion({ youthId, youthName, staffName }) {
             key={`${msg.role}-${index}`}
             role={msg.role}
             text={msg.text}
-            escalationResources={msg.escalationResources}
+            showCrisisSupport={msg.showCrisisSupport}
           />
         ))}
       </div>

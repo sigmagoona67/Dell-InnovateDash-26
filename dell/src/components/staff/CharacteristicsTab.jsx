@@ -524,6 +524,12 @@ export default function CharacteristicsTab({ detail, refreshKey = 0, staffProfil
             </p>
           )}
 
+          {insights.crisis_detected && !loadingInsights && (
+            <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              Crisis-level content was detected in a recent AI chat. Review the timeline and follow up promptly.
+            </p>
+          )}
+
           {!canSaveEdits && detail?.youth?.assigned_staff_id && !isAssignedWorker && (
             <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
               This youth is assigned to another worker. Only the assigned worker can edit profile and insights.

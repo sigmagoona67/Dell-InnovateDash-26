@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import AICompanion from '../../components/youth/AICompanion'
 import AssignedWorkerPanel from '../../components/youth/AssignedWorkerPanel'
 import ChatHistoryPanel from '../../components/youth/ChatHistoryPanel'
+import YouthSchedulePanel from '../../components/youth/YouthSchedulePanel'
 import YouthProfilePanel from '../../components/youth/YouthProfilePanel'
 import YouthSidebar from '../../components/youth/YouthSidebar'
 import { useYouthSession } from '../../context/YouthSessionContext'
@@ -49,6 +50,26 @@ export default function YouthPortal() {
           </Link>
         </header>
 
+        <div className="flex gap-2 overflow-x-auto border-b border-slate-100 bg-white px-4 py-2 lg:hidden">
+          {[
+            { id: 'companion', label: '🏠 Companion' },
+            { id: 'history', label: '📅 History' },
+            { id: 'schedule', label: '🗓️ Schedule' },
+            { id: 'worker', label: '👩 Worker' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setActiveSection(item.id)}
+              className={`shrink-0 rounded-xl px-3 py-2 text-sm font-semibold ${
+                activeSection === item.id ? 'bg-teal-50 text-teal-700' : 'text-slate-500'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {activeSection === 'companion' && (
             <AICompanion
@@ -58,6 +79,13 @@ export default function YouthPortal() {
             />
           )}
           {activeSection === 'history' && <ChatHistoryPanel youthId={context.youth.id} />}
+          {activeSection === 'schedule' && (
+            <YouthSchedulePanel
+              youthId={context.youth.id}
+              staffId={context.youth.assigned_staff_id}
+              workerName={workerView.hasAssignedWorker ? workerView.name : 'Youth Worker'}
+            />
+          )}
           {activeSection === 'worker' && (
             <AssignedWorkerPanel
               workerView={workerView}

@@ -7,6 +7,8 @@ import {
   getSessionsForMonth,
   mapMessagesForUi,
 } from '../../services/chatService'
+import { formatAppDate } from '../../lib/locale'
+import EditableSection from '../staff/EditableSection'
 
 function ChatBubble({ role, text }) {
   const isUser = role === 'user'
@@ -135,7 +137,7 @@ export default function ChatHistoryPanel({ youthId }) {
           <>
             <div className="mb-4 flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <h2 className="font-semibold text-slate-800">
-                {new Date(selectedSession.session_date).toLocaleDateString('en-SG', {
+                {formatAppDate(selectedSession.session_date, {
                   day: 'numeric',
                   month: 'long',
                   year: 'numeric',
@@ -175,12 +177,11 @@ export default function ChatHistoryPanel({ youthId }) {
                   <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">Risk level</p>
                   <p className="mt-1 text-sm capitalize text-slate-700">{selectedSession.risk_level || 'low'}</p>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">AI Summary</p>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                <EditableSection title="Session summary" value={aiSummaryText || ''} disabled>
+                  <p className="text-sm leading-relaxed text-slate-700">
                     {aiSummaryText || 'No summary available yet.'}
                   </p>
-                </div>
+                </EditableSection>
               </div>
             )}
           </>

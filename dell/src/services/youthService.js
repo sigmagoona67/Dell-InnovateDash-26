@@ -1,3 +1,4 @@
+import { ensureAuthSession } from '../lib/authService'
 import { requireInsforge } from '../lib/insforgeClient'
 import {
   createProfile,
@@ -10,9 +11,8 @@ import {
 import { getQuestionnaire, reconcileYouthOnboardingStatus } from './questionnaireService'
 
 export async function getCurrentAuthUser() {
-  const { data, error } = await requireInsforge().auth.getCurrentUser()
-  if (error) throw error
-  return data?.user ?? null
+  const user = await ensureAuthSession()
+  return user
 }
 
 export async function requireYouthUser() {

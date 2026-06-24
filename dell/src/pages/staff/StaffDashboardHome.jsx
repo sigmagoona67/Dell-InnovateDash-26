@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AssignedYouthCard from '../../components/staff/AssignedYouthCard'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
+import StaffSchedulePanel from '../../components/staff/StaffSchedulePanel'
 import { useStaffSession } from '../../context/StaffSessionContext'
 import { assignYouthToMe, getStaffDashboard } from '../../services/staffService'
 
@@ -61,11 +62,12 @@ export default function StaffDashboardHome() {
   const [activeFilter, setActiveFilter] = useState('all')
 
   const loadDashboard = useCallback(async () => {
+    if (!context?.staffProfile) return
     setLoading(true)
     setErrorMessage('')
     console.log('StaffDashboard: loading dashboard...')
     try {
-      const data = await getStaffDashboard()
+      const data = await getStaffDashboard(context)
       console.log('StaffDashboard: dashboard loaded', {
         pendingCount: data.pending?.length ?? 0,
         pendingDebug: data.pendingDebug,
@@ -78,7 +80,7 @@ export default function StaffDashboardHome() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [context])
 
   useEffect(() => {
     loadDashboard()
@@ -99,13 +101,17 @@ export default function StaffDashboardHome() {
   }
 
   const staffName = dashboard?.staff?.display_name || context?.staffProfile?.display_name || 'Staff'
+  const staffId = dashboard?.staff?.id || context?.staffProfile?.id
   const assignedCount = dashboard?.assigned?.length ?? 0
   const pendingCount = dashboard?.pending?.length ?? 0
   const showAssigned = activeFilter === 'all' || activeFilter === 'assigned'
   const showPending = activeFilter === 'all' || activeFilter === 'pending'
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-white pb-28">
+    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-white lg:flex-row">
+      <StaffSchedulePanel staffId={staffId} />
+
+      <div className="relative min-h-dvh flex-1 overflow-hidden pb-28 lg:pb-0">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 top-0 h-96 w-96 rounded-full bg-sky-50 blur-3xl" />
         <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
@@ -119,6 +125,12 @@ export default function StaffDashboardHome() {
             <p className="mt-2 text-slate-600">Welcome back, {staffName}. Manage assigned youth and review AI insights.</p>
           </div>
           <div className="flex items-center gap-4">
+            <Link
+              to="/staff-dashboard/team"
+              className="rounded-2xl border border-teal-100 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-100"
+            >
+              Care team
+            </Link>
             <Link
               to="/staff-dashboard/profile"
               className="text-sm font-medium text-sky-600 hover:text-sky-700"
@@ -215,6 +227,7 @@ export default function StaffDashboardHome() {
           pendingCount={pendingCount}
         />
       )}
+      </div>
     </div>
   )
 }

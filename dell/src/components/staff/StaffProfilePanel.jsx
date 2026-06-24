@@ -44,7 +44,7 @@ export default function StaffProfilePanel({ staffProfileId }) {
 
   async function handleSaved(data) {
     setQuestionnaire(normalizeStaffQuestionnaireRow(data))
-    await refresh()
+    await refresh({ silent: true })
   }
 
   return (

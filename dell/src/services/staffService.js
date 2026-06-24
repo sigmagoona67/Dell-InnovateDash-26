@@ -1,3 +1,4 @@
+import { ensureAuthSession } from '../lib/authService'
 import { requireInsforge } from '../lib/insforgeClient'
 import {
   buildAssignedYouthCardMeta,
@@ -6,13 +7,24 @@ import {
   formatYouthNameLine,
 } from '../lib/assignedYouthCard'
 import { resolveCurrentConcern, resolveCasePreview } from '../lib/dashboardCard'
+<<<<<<< Updated upstream
 import { findProfileByAuthUserId, createProfile, resolveDisplayNameFromUser, ensureStaffProfileRecord } from '../lib/profileService'
+=======
+import { resolveMentalHealthConcerns } from '../lib/onboardingData'
+import { findProfileByAuthUserId, createProfile, resolveDisplayNameFromUser, ensureStaffProfileRecord, findStaffProfileRecordByUserId } from '../lib/profileService'
+import { readStaffBootstrapCache, writeStaffBootstrapCache, readStaffBootstrapMemory, writeStaffBootstrapMemory } from '../lib/staffBootstrapCache'
+>>>>>>> Stashed changes
 import { getStaffQuestionnaire, reconcileStaffOnboardingStatus } from './staffQuestionnaireService'
 import { resolveYouthRiskLevel } from '../lib/riskResolver'
 import { RISK_ORDER, sortByRisk } from '../lib/staffMockData'
 import { EMPTY_QUESTIONNAIRE, getQuestionnaire } from './questionnaireService'
 
 import { loadYouthInsights } from './insightsFallbackService'
+import {
+  getConsultationRequestsForStaff,
+  hasPendingYouthScheduleRequest,
+  resolveUnreadStaffMeetingResponse,
+} from './scheduleService'
 
 function db() {
   return requireInsforge().database
@@ -43,13 +55,28 @@ async function safeOptionalQuery(queryPromise, label) {
   return data
 }
 
-function mapYouthCard(youthRow, profileRow, questionnaire, sessions, offlineSessions, insights, messages, lastViewed) {
+function mapYouthCard(
+  youthRow,
+  profileRow,
+  questionnaire,
+  sessions,
+  offlineSessions,
+  insights,
+  messages,
+  lastTimelineViewed,
+  hasScheduleRequest = false,
+  scheduleResponse = null,
+) {
   const riskLevel = resolveYouthRiskLevel({
     insights,
     aiSessions: sessions,
     offlineSessions,
     messages: messages || [],
   })
+
+  const crisisDetected = Boolean(
+    insights?.crisis_detected || (sessions || []).some((session) => session.crisis_detected),
+  )
 
   const displayName =
     youthRow.preferred_name || profileRow?.display_name || profileRow?.email?.split('@')[0] || 'Youth'
@@ -59,7 +86,7 @@ function mapYouthCard(youthRow, profileRow, questionnaire, sessions, offlineSess
     sessions: sessions || [],
     offlineSessions: offlineSessions || [],
     insights,
-    lastViewedAt: lastViewed,
+    lastTimelineViewedAt: lastTimelineViewed,
   })
 
   const currentConcern = resolveCurrentConcern({ insights, questionnaire })
@@ -75,7 +102,10 @@ function mapYouthCard(youthRow, profileRow, questionnaire, sessions, offlineSess
     email: profileRow?.email || '',
     onboardingCompleted: Boolean(youthRow.onboarding_completed),
     riskLevel,
-    hasNew: activityMeta.hasNew,
+    crisisDetected,
+    hasNightAiChat: activityMeta.hasNightAiChat,
+    hasScheduleRequest,
+    scheduleResponse,
     currentConcern,
     casePreview,
     currentStateDisplay: formatCurrentStateDisplay(insights),
@@ -89,9 +119,8 @@ function mapYouthCard(youthRow, profileRow, questionnaire, sessions, offlineSess
 }
 
 export async function getCurrentAuthUser() {
-  const { data, error } = await requireInsforge().auth.getCurrentUser()
-  if (error) throw error
-  return data?.user ?? null
+  const user = await ensureAuthSession()
+  return user
 }
 
 export async function requireStaffUser() {
@@ -130,22 +159,35 @@ export function getStaffDestination(onboardingComplete) {
   return onboardingComplete ? '/staff-dashboard' : '/staff-dashboard/onboarding'
 }
 
-export async function bootstrapStaffSession() {
+export async function bootstrapStaffSession({ preferCache = true } = {}) {
   const insforge = requireInsforge()
   const user = await requireStaffUser()
+
+  const memoryCached = readStaffBootstrapMemory(user.id)
+  if (preferCache && memoryCached) {
+    return memoryCached
+  }
+
+  const cached = readStaffBootstrapCache()
+  if (preferCache && cached?.user?.id === user.id) {
+    writeStaffBootstrapMemory(user.id, cached)
+    return cached
+  }
 
   if (user.profile?.role !== 'staff') {
     await insforge.auth.setProfile({ role: 'staff', email: user.email, name: user.profile?.name })
   }
 
   const staffProfile = await ensureStaffProfile(user)
-  const staffRecord = await ensureStaffProfileRecord({ profileId: staffProfile.id })
-  const questionnaire = await getStaffQuestionnaire(staffProfile.id)
+  const [staffRecord, questionnaire] = await Promise.all([
+    findStaffProfileRecordByUserId(staffProfile.id),
+    getStaffQuestionnaire(staffProfile.id),
+  ])
   const { staffRecord: reconciledStaffRecord, onboardingComplete } =
     await reconcileStaffOnboardingStatus(staffRecord, questionnaire)
   const destination = getStaffDestination(onboardingComplete)
 
-  return {
+  const result = {
     user,
     staffProfile,
     staffRecord: reconciledStaffRecord,
@@ -153,6 +195,11 @@ export async function bootstrapStaffSession() {
     onboardingComplete,
     destination,
   }
+
+  writeStaffBootstrapMemory(user.id, result)
+  writeStaffBootstrapCache(user.id, result)
+
+  return result
 }
 
 /** Only the youth's assigned worker may edit insights / session summaries. */
@@ -167,14 +214,52 @@ async function fetchLastViewed(staffId, youthIds) {
   const data = await safeOptionalQuery(
     db()
       .from('staff_youth_views')
-      .select('youth_id, last_viewed_at')
+      .select('youth_id, last_viewed_at, last_schedule_viewed_at')
       .eq('staff_id', staffId)
       .in('youth_id', youthIds),
     'staff_youth_views',
   )
 
   if (!data) return {}
-  return Object.fromEntries(data.map((row) => [row.youth_id, row.last_viewed_at]))
+  return Object.fromEntries(
+    data.map((row) => [
+      row.youth_id,
+      {
+        timeline: row.last_viewed_at,
+        schedule: row.last_schedule_viewed_at,
+      },
+    ]),
+  )
+}
+
+async function upsertStaffYouthViewField(staffId, youthId, field, value) {
+  const existing = await safeOptionalQuery(
+    db()
+      .from('staff_youth_views')
+      .select('staff_id')
+      .eq('staff_id', staffId)
+      .eq('youth_id', youthId)
+      .maybeSingle(),
+    'staff_youth_views',
+  )
+
+  if (existing === null) return
+
+  if (existing) {
+    const { error } = await db()
+      .from('staff_youth_views')
+      .update({ [field]: value })
+      .eq('staff_id', staffId)
+      .eq('youth_id', youthId)
+    if (error) throw error
+    return
+  }
+
+  const { error } = await db()
+    .from('staff_youth_views')
+    .insert([{ staff_id: staffId, youth_id: youthId, [field]: value }])
+
+  if (error) throw error
 }
 
 async function buildYouthCards(staffId, youthRows) {
@@ -183,7 +268,8 @@ async function buildYouthCards(staffId, youthRows) {
   const youthIds = youthRows.map((row) => row.id)
   const userIds = youthRows.map((row) => row.user_id)
 
-  const [profiles, questionnaires, sessions, offlineSessions, insights, messages, lastViewedMap] = await Promise.all([
+  const [profiles, questionnaires, sessions, offlineSessions, insights, messages, lastViewedMap, consultationRequests] =
+    await Promise.all([
     db()
       .from('profiles')
       .select('id, display_name, email')
@@ -202,7 +288,7 @@ async function buildYouthCards(staffId, youthRows) {
       }),
     db()
       .from('ai_chat_sessions')
-      .select('youth_id, session_date, mood_check_in, ai_summary, risk_level, updated_at, created_at')
+      .select('youth_id, session_date, mood_check_in, ai_summary, risk_level, crisis_detected, updated_at, created_at')
       .in('youth_id', youthIds)
       .then(({ data, error }) => {
         if (error) throw error
@@ -230,7 +316,10 @@ async function buildYouthCards(staffId, youthRows) {
         return data
       }),
     fetchLastViewed(staffId, youthIds),
+    getConsultationRequestsForStaff(staffId).catch(() => []),
   ])
+
+  const allRequests = consultationRequests || []
 
   const profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]))
   const questionnaireMap = Object.fromEntries((questionnaires || []).map((q) => [q.youth_id, q]))
@@ -248,8 +337,15 @@ async function buildYouthCards(staffId, youthRows) {
     return acc
   }, {})
 
+<<<<<<< Updated upstream
   return youthRows.map((row) =>
     mapYouthCard(
+=======
+  return youthRows.map((row) => {
+    const normalizedQuestionnaire = normalizeQuestionnaireRow(questionnaireMap[row.id])
+    const viewState = lastViewedMap[row.id] || {}
+    const card = mapYouthCard(
+>>>>>>> Stashed changes
       row,
       profileMap[row.user_id],
       questionnaireMap[row.id],
@@ -257,9 +353,23 @@ async function buildYouthCards(staffId, youthRows) {
       offlineSessionsMap[row.id],
       insightsMap[row.id],
       messagesMap[row.id],
+<<<<<<< Updated upstream
       lastViewedMap[row.id],
     ),
   )
+=======
+      viewState.timeline,
+      hasPendingYouthScheduleRequest(allRequests, row.id),
+      resolveUnreadStaffMeetingResponse(allRequests, row.id, viewState.schedule),
+    )
+
+    if (staffQuestionnaire) {
+      card.compatibility = computeCompatibilityForPair(normalizedQuestionnaire, staffQuestionnaire)
+    }
+
+    return card
+  })
+>>>>>>> Stashed changes
 }
 
 /** Pending youth cards use the same risk/insights logic as assigned cards. */
@@ -291,8 +401,23 @@ export async function loadPendingYouth(staffId) {
   }
 }
 
+<<<<<<< Updated upstream
 export async function getStaffDashboard() {
   const { staffProfile } = await bootstrapStaffSession()
+=======
+export async function getStaffDashboard(existingSession = null) {
+  let staffProfile
+  let staffQuestionnaire
+
+  if (existingSession?.staffProfile) {
+    staffProfile = existingSession.staffProfile
+    staffQuestionnaire = existingSession.questionnaire
+  } else {
+    const boot = await bootstrapStaffSession()
+    staffProfile = boot.staffProfile
+    staffQuestionnaire = boot.questionnaire
+  }
+>>>>>>> Stashed changes
 
   const pendingResult = await loadPendingYouth(staffProfile.id)
 
@@ -369,37 +494,25 @@ export async function assignYouthToMe(youthId) {
   return updated
 }
 
-export async function markYouthViewed(youthId) {
+export async function markYouthTimelineViewed(youthId) {
   try {
-    const { staffProfile } = await bootstrapStaffSession()
+    const { staffProfile } = await bootstrapStaffSession({ preferCache: true })
     const now = new Date().toISOString()
-
-    const existing = await safeOptionalQuery(
-      db()
-        .from('staff_youth_views')
-        .select('staff_id')
-        .eq('staff_id', staffProfile.id)
-        .eq('youth_id', youthId)
-        .maybeSingle(),
-      'staff_youth_views',
-    )
-
-    if (existing === null) return
-
-    if (existing) {
-      await db()
-        .from('staff_youth_views')
-        .update({ last_viewed_at: now })
-        .eq('staff_id', staffProfile.id)
-        .eq('youth_id', youthId)
-    } else {
-      await db().from('staff_youth_views').insert([
-        { staff_id: staffProfile.id, youth_id: youthId, last_viewed_at: now },
-      ])
-    }
+    await upsertStaffYouthViewField(staffProfile.id, youthId, 'last_viewed_at', now)
   } catch (error) {
     if (isMissingTableError(error)) return
-    console.warn('[staff] mark viewed skipped:', error.message)
+    console.warn('[staff] mark timeline viewed failed:', error.message)
+  }
+}
+
+export async function markYouthScheduleViewed(youthId) {
+  try {
+    const { staffProfile } = await bootstrapStaffSession({ preferCache: true })
+    const now = new Date().toISOString()
+    await upsertStaffYouthViewField(staffProfile.id, youthId, 'last_schedule_viewed_at', now)
+  } catch (error) {
+    if (isMissingTableError(error)) return
+    console.warn('[staff] mark schedule viewed failed:', error.message)
   }
 }
 
@@ -454,8 +567,6 @@ export async function getYouthDetail(youthId) {
       'ai_dynamic_insights',
     ),
   ])
-
-  await markYouthViewed(youthId)
 
   const displayName =
     youthRow.preferred_name || profileRow?.display_name || profileRow?.email?.split('@')[0] || 'Youth'

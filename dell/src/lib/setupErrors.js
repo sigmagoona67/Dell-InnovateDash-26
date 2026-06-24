@@ -32,8 +32,11 @@ export function classifySetupError(error) {
   if (
     text.includes('not authenticated') ||
     text.includes('role mismatch') ||
-    text.includes('unauthorized') ||
-    text.includes('invalid login')
+    text.includes('session expired') ||
+    text.includes('invalid login') ||
+    text.includes('jwt expired') ||
+    text.includes('invalid jwt') ||
+    text.includes('token expired')
   ) {
     return {
       type: SETUP_ERROR.AUTH,

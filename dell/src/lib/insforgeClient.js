@@ -1,7 +1,12 @@
 import { createClient } from '@insforge/sdk'
 
-const baseUrl = import.meta.env.VITE_INSFORGE_URL?.trim().replace(/\/+$/, '')
-const anonKey = import.meta.env.VITE_INSFORGE_ANON_KEY?.trim()
+const runtimeConfig =
+  typeof window !== 'undefined' && window.__RUNTIME_CONFIG__ ? window.__RUNTIME_CONFIG__ : {}
+
+const baseUrl = (runtimeConfig.VITE_INSFORGE_URL || import.meta.env.VITE_INSFORGE_URL)
+  ?.trim()
+  .replace(/\/+$/, '')
+const anonKey = (runtimeConfig.VITE_INSFORGE_ANON_KEY || import.meta.env.VITE_INSFORGE_ANON_KEY)?.trim()
 
 export const isInsforgeConfigured = Boolean(baseUrl && anonKey)
 
@@ -9,7 +14,8 @@ export const insforge = isInsforgeConfigured
   ? createClient({
       baseUrl,
       anonKey,
-      timeout: 300000,
+      timeout: 45000,
+      retryCount: 1,
     })
   : null
 

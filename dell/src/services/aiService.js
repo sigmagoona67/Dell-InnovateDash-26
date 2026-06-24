@@ -1,4 +1,5 @@
 import { requireInsforge } from '../lib/insforgeClient'
+import { ensureAuthSession } from '../lib/authService'
 
 function formatInvokeError(error, data) {
   if (data?.error) {
@@ -26,11 +27,11 @@ function formatInvokeError(error, data) {
 }
 
 async function ensureYouthAuthSession() {
-  const { data, error } = await requireInsforge().auth.getCurrentUser()
-  if (error || !data?.user) {
+  const user = await ensureAuthSession()
+  if (!user) {
     throw new Error('Session expired. Please log out and sign in again.')
   }
-  return data.user
+  return user
 }
 
 export async function invokeYouthAi(action, payload = {}) {
