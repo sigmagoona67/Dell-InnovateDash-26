@@ -13,7 +13,7 @@ export function YouthOnboardingGate({ children }) {
   }
 
   if (completed && onOnboarding) {
-    return <Navigate to="/youth-chat/portal" replace />
+    return <Navigate to={`/youth-chat/portal${location.search}`} replace />
   }
 
   return children

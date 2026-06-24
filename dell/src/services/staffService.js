@@ -7,13 +7,8 @@ import {
   formatYouthNameLine,
 } from '../lib/assignedYouthCard'
 import { resolveCurrentConcern, resolveCasePreview } from '../lib/dashboardCard'
-<<<<<<< Updated upstream
-import { findProfileByAuthUserId, createProfile, resolveDisplayNameFromUser, ensureStaffProfileRecord } from '../lib/profileService'
-=======
-import { resolveMentalHealthConcerns } from '../lib/onboardingData'
 import { findProfileByAuthUserId, createProfile, resolveDisplayNameFromUser, ensureStaffProfileRecord, findStaffProfileRecordByUserId } from '../lib/profileService'
 import { readStaffBootstrapCache, writeStaffBootstrapCache, readStaffBootstrapMemory, writeStaffBootstrapMemory } from '../lib/staffBootstrapCache'
->>>>>>> Stashed changes
 import { getStaffQuestionnaire, reconcileStaffOnboardingStatus } from './staffQuestionnaireService'
 import { resolveYouthRiskLevel } from '../lib/riskResolver'
 import { RISK_ORDER, sortByRisk } from '../lib/staffMockData'
@@ -25,6 +20,11 @@ import {
   hasPendingYouthScheduleRequest,
   resolveUnreadStaffMeetingResponse,
 } from './scheduleService'
+import {
+  closePendingReassignmentForYouth,
+  getPendingReassignmentsForYouthIds,
+  shouldShowPendingReassignment,
+} from './reassignmentService'
 
 function db() {
   return requireInsforge().database
@@ -267,8 +267,11 @@ async function buildYouthCards(staffId, youthRows) {
 
   const youthIds = youthRows.map((row) => row.id)
   const userIds = youthRows.map((row) => row.user_id)
+  const assignedYouthIds = youthRows
+    .filter((row) => row.assigned_staff_id === staffId)
+    .map((row) => row.id)
 
-  const [profiles, questionnaires, sessions, offlineSessions, insights, messages, lastViewedMap, consultationRequests] =
+  const [profiles, questionnaires, sessions, offlineSessions, insights, messages, lastViewedMap, consultationRequests, reassignmentMap, assignmentStartedMap] =
     await Promise.all([
     db()
       .from('profiles')
@@ -317,9 +320,30 @@ async function buildYouthCards(staffId, youthRows) {
       }),
     fetchLastViewed(staffId, youthIds),
     getConsultationRequestsForStaff(staffId).catch(() => []),
+    assignedYouthIds.length > 0
+      ? getPendingReassignmentsForYouthIds(assignedYouthIds)
+      : Promise.resolve({}),
+    assignedYouthIds.length > 0
+      ? safeOptionalQuery(
+          db()
+            .from('assigned_workers')
+            .select('youth_id, assigned_at, status')
+            .eq('staff_id', staffId)
+            .in('youth_id', assignedYouthIds)
+            .eq('status', 'active'),
+          'assigned_workers',
+        )
+      : Promise.resolve(null),
   ])
 
   const allRequests = consultationRequests || []
+
+  const assignmentStartedByYouth = (assignmentStartedMap || []).reduce((acc, row) => {
+    if (!acc[row.youth_id] || new Date(row.assigned_at) > new Date(acc[row.youth_id])) {
+      acc[row.youth_id] = row.assigned_at
+    }
+    return acc
+  }, {})
 
   const profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]))
   const questionnaireMap = Object.fromEntries((questionnaires || []).map((q) => [q.youth_id, q]))
@@ -337,15 +361,10 @@ async function buildYouthCards(staffId, youthRows) {
     return acc
   }, {})
 
-<<<<<<< Updated upstream
-  return youthRows.map((row) =>
-    mapYouthCard(
-=======
   return youthRows.map((row) => {
-    const normalizedQuestionnaire = normalizeQuestionnaireRow(questionnaireMap[row.id])
     const viewState = lastViewedMap[row.id] || {}
+    const pendingReassignment = reassignmentMap?.[row.id]
     const card = mapYouthCard(
->>>>>>> Stashed changes
       row,
       profileMap[row.user_id],
       questionnaireMap[row.id],
@@ -353,30 +372,31 @@ async function buildYouthCards(staffId, youthRows) {
       offlineSessionsMap[row.id],
       insightsMap[row.id],
       messagesMap[row.id],
-<<<<<<< Updated upstream
-      lastViewedMap[row.id],
-    ),
-  )
-=======
       viewState.timeline,
       hasPendingYouthScheduleRequest(allRequests, row.id),
       resolveUnreadStaffMeetingResponse(allRequests, row.id, viewState.schedule),
     )
 
-    if (staffQuestionnaire) {
-      card.compatibility = computeCompatibilityForPair(normalizedQuestionnaire, staffQuestionnaire)
+    if (pendingReassignment && shouldShowPendingReassignment(row, pendingReassignment, assignmentStartedByYouth[row.id])) {
+      card.pendingReassignment = {
+        id: pendingReassignment.id,
+        reason: pendingReassignment.reason,
+        createdAt: pendingReassignment.created_at,
+      }
     }
 
     return card
   })
->>>>>>> Stashed changes
 }
 
 /** Pending youth cards use the same risk/insights logic as assigned cards. */
 export async function loadPendingYouth(staffId) {
   console.log('Loading pending youth...')
 
-  const { data, error } = await db().from('youth_profiles').select('*').is('assigned_staff_id', null)
+  const { data, error } = await db()
+    .from('youth_profiles')
+    .select('*')
+    .is('assigned_staff_id', null)
 
   console.log('Pending youth query response data:', data)
   console.log('Pending youth query error:', error)
@@ -386,11 +406,33 @@ export async function loadPendingYouth(staffId) {
       pending: [],
       error,
       rawRows: [],
+      buildError: null,
     }
   }
 
   const rawRows = data || []
-  const pending = staffId ? await buildYouthCards(staffId, rawRows) : []
+  let pending = []
+  let buildError = null
+
+  if (staffId && rawRows.length) {
+    try {
+      pending = await buildYouthCards(staffId, rawRows)
+    } catch (err) {
+      console.error('[staff] pending youth card build failed:', err)
+      buildError = err
+      pending = rawRows.map((row) => ({
+        id: row.id,
+        name: row.preferred_name || 'Youth',
+        nameLine: row.preferred_name || 'Youth',
+        riskLevel: 'low',
+        currentConcern: '—',
+        casePreview: '—',
+        currentStateDisplay: '—',
+        latestInteractionInsight: '—',
+        lastActivityDisplay: '—',
+      }))
+    }
+  }
 
   console.log('Pending youth mapped cards:', pending)
 
@@ -398,26 +440,19 @@ export async function loadPendingYouth(staffId) {
     pending,
     error: null,
     rawRows,
+    buildError,
   }
 }
 
-<<<<<<< Updated upstream
-export async function getStaffDashboard() {
-  const { staffProfile } = await bootstrapStaffSession()
-=======
 export async function getStaffDashboard(existingSession = null) {
   let staffProfile
-  let staffQuestionnaire
 
   if (existingSession?.staffProfile) {
     staffProfile = existingSession.staffProfile
-    staffQuestionnaire = existingSession.questionnaire
   } else {
     const boot = await bootstrapStaffSession()
     staffProfile = boot.staffProfile
-    staffQuestionnaire = boot.questionnaire
   }
->>>>>>> Stashed changes
 
   const pendingResult = await loadPendingYouth(staffProfile.id)
 
@@ -437,6 +472,7 @@ export async function getStaffDashboard(existingSession = null) {
     pending: pendingResult.pending,
     pendingDebug: {
       error: pendingResult.error?.message || pendingResult.error?.details || null,
+      buildError: pendingResult.buildError?.message || null,
       rawCount: pendingResult.rawRows.length,
       isEmpty: !pendingResult.error && pendingResult.rawRows.length === 0,
     },
@@ -463,11 +499,19 @@ export async function assignYouthToMe(youthId) {
     return existing
   }
 
+  // Pool reclaim: past reassignment history should not affect a fresh assignment.
+  await closePendingReassignmentForYouth(youthId).catch((error) => {
+    console.warn('[staff] clear pending reassignment before assign failed:', error.message)
+  })
+
+  const now = new Date().toISOString()
+
   const { data: updated, error } = await db()
     .from('youth_profiles')
     .update({
       assigned_staff_id: staffProfile.id,
       assignment_status: 'assigned',
+      updated_at: now,
     })
     .eq('id', youthId)
     .is('assigned_staff_id', null)
@@ -479,17 +523,83 @@ export async function assignYouthToMe(youthId) {
     throw new Error('This youth has already been assigned to another staff.')
   }
 
-  const { error: workerError } = await db().from('assigned_workers').insert([
-    {
-      youth_id: youthId,
-      staff_id: staffProfile.id,
-      status: 'active',
-    },
-  ])
+  const { data: reactivatedWorker, error: workerError } = await db()
+    .from('assigned_workers')
+    .update({ status: 'active', assigned_at: now })
+    .eq('youth_id', youthId)
+    .eq('staff_id', staffProfile.id)
+    .select('id')
+    .maybeSingle()
 
-  if (workerError && !workerError.message?.includes('duplicate')) {
-    throw workerError
+  if (workerError && !isMissingTableError(workerError)) {
+    console.warn('[staff] assigned_workers reactivate failed:', workerError.message)
+  } else if (!reactivatedWorker) {
+    const { error: insertWorkerError } = await db().from('assigned_workers').insert([
+      {
+        youth_id: youthId,
+        staff_id: staffProfile.id,
+        status: 'active',
+        assigned_at: now,
+      },
+    ])
+    if (insertWorkerError && !insertWorkerError.message?.includes('duplicate')) {
+      throw insertWorkerError
+    }
   }
+
+  await closePendingReassignmentForYouth(youthId).catch((error) => {
+    console.warn('[staff] clear pending reassignment after assign failed:', error.message)
+  })
+
+  return updated
+}
+
+export async function releaseYouthCase(youthId) {
+  const { staffProfile } = await bootstrapStaffSession()
+
+  const { data: existing, error: readError } = await db()
+    .from('youth_profiles')
+    .select('id, assigned_staff_id, assignment_status')
+    .eq('id', youthId)
+    .maybeSingle()
+
+  if (readError) throw readError
+  if (!existing) throw new Error('Youth not found.')
+
+  if (existing.assigned_staff_id !== staffProfile.id) {
+    throw new Error('Only the assigned worker can release this case.')
+  }
+
+  const { data: updated, error } = await db()
+    .from('youth_profiles')
+    .update({
+      assigned_staff_id: null,
+      assignment_status: 'pending',
+    })
+    .eq('id', youthId)
+    .eq('assigned_staff_id', staffProfile.id)
+    .select('*')
+    .maybeSingle()
+
+  if (error) throw error
+  if (!updated) {
+    throw new Error('Unable to release this case. Please try again.')
+  }
+
+  await db()
+    .from('assigned_workers')
+    .update({ status: 'inactive' })
+    .eq('youth_id', youthId)
+    .eq('staff_id', staffProfile.id)
+    .then(({ error: workerError }) => {
+      if (workerError && !isMissingTableError(workerError)) {
+        console.warn('[staff] assigned_workers release update failed:', workerError.message)
+      }
+    })
+
+  await closePendingReassignmentForYouth(youthId).catch((error) => {
+    console.warn('[staff] reassignment close failed:', error.message)
+  })
 
   return updated
 }

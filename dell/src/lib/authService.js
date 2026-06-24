@@ -1,40 +1,45 @@
 import { upsertAppProfileAfterAuth } from './profileService'
-<<<<<<< Updated upstream
-=======
 import { requireInsforge } from './insforgeClient'
 import {
   applyAuthSessionToClient,
   clearPersistedAuthSession,
+  hasPersistedAuthSession,
+  primeAuthClientFromPersistence,
   readPersistedAuthSession,
   refreshAuthSessionWithToken,
   validateStoredAccessToken,
   writePersistedAuthSession,
 } from './authPersistence'
 import { clearStaffBootstrapCache } from './staffBootstrapCache'
-import { STAFF_ACCESS_CODE } from './staffAccessConfig'
->>>>>>> Stashed changes
+import { clearYouthBootstrapCache } from './youthBootstrapCache'
 
 const ROLE_CACHE_PREFIX = 'carebridge-role:'
 
 let memoryAuthUser = null
+let restorePromise = null
 
 export function clearAuthSessionState(client) {
   memoryAuthUser = null
+  restorePromise = null
   clearPersistedAuthSession()
   clearStaffBootstrapCache()
+  clearYouthBootstrapCache()
   const insforge = client || requireInsforge()
   insforge?.auth?.signOut?.().catch(() => {})
 }
 
 export function persistAuthSessionFromSignIn(data) {
-  if (!data?.accessToken) return
-  writePersistedAuthSession({
+  if (!data?.accessToken && !data?.refreshToken && !data?.refresh_token) return
+
+  const session = {
     accessToken: data.accessToken,
-    refreshToken: data.refreshToken,
+    refreshToken: data.refreshToken || data.refresh_token || null,
     user: data.user,
-  })
+  }
+
+  writePersistedAuthSession(session)
   memoryAuthUser = data.user || null
-  applyAuthSessionToClient(requireInsforge(), data)
+  applyAuthSessionToClient(requireInsforge(), session)
 }
 
 export const INSFORGE_DISABLE_VERIFICATION_HINT =
@@ -158,96 +163,172 @@ async function resolveUserRole(insforge, { data, role, email }) {
   return signedInRole || role
 }
 
-export async function ensureAuthSession(insforge) {
-  const client = insforge || requireInsforge()
+function userFrom(result) {
+  return result?.data?.user ?? null
+}
 
-  function userFrom(result) {
-    return result?.data?.user ?? null
-  }
+function isTransientAuthError(error) {
+  if (!error) return false
+  const text = String(error.message || error.code || '').toLowerCase()
+  return (
+    text.includes('fetch failed') ||
+    text.includes('failed to fetch') ||
+    text.includes('network') ||
+    text.includes('timeout') ||
+    text.includes('timed out')
+  )
+}
 
-  function isTransientAuthError(error) {
-    if (!error) return false
-    const text = String(error.message || error.code || '').toLowerCase()
-    return (
-      text.includes('fetch failed') ||
-      text.includes('failed to fetch') ||
-      text.includes('network') ||
-      text.includes('timeout') ||
-      text.includes('timed out')
-    )
-  }
+async function restoreAuthSession(client) {
+  const persisted = readPersistedAuthSession() || primeAuthClientFromPersistence(client)
+  if (!persisted) return null
 
-  if (memoryAuthUser) {
-    applyAuthSessionToClient(client, readPersistedAuthSession())
-    return memoryAuthUser
-  }
-
-  const persisted = readPersistedAuthSession()
-  if (persisted?.accessToken || persisted?.refreshToken) {
-    applyAuthSessionToClient(client, persisted)
-  }
-
-  if (persisted?.accessToken) {
+  if (persisted.accessToken) {
     const user = await validateStoredAccessToken(client, persisted.accessToken)
     if (user) {
-      memoryAuthUser = user
       writePersistedAuthSession({ ...persisted, user })
+      applyAuthSessionToClient(client, { ...persisted, user })
       return user
     }
   }
 
-  if (persisted?.refreshToken) {
+  if (persisted.refreshToken) {
     const refreshed = await refreshAuthSessionWithToken(client, persisted.refreshToken)
-    if (refreshed?.user) {
-      memoryAuthUser = refreshed.user
-      return refreshed.user
-    }
+    if (refreshed?.user) return refreshed.user
   }
 
-  if (persisted?.accessToken) {
-    clearPersistedAuthSession()
+  const cookieRefresh = await Promise.race([
+    client.auth.refreshSession(),
+    new Promise((resolve) => {
+      setTimeout(() => resolve({ data: null, error: null }), 5000)
+    }),
+  ])
+  if (!cookieRefresh.error && cookieRefresh.data?.user) {
+    writePersistedAuthSession({
+      accessToken: cookieRefresh.data.accessToken,
+      refreshToken: cookieRefresh.data.refreshToken || persisted.refreshToken || null,
+      user: cookieRefresh.data.user,
+    })
+    applyAuthSessionToClient(client, {
+      accessToken: cookieRefresh.data.accessToken,
+      refreshToken: cookieRefresh.data.refreshToken || persisted.refreshToken || null,
+      user: cookieRefresh.data.user,
+    })
+    return cookieRefresh.data.user
   }
 
-  let result = await client.auth.getCurrentUser()
-  if (result.error && !isTransientAuthError(result.error)) throw result.error
-  if (userFrom(result)) {
-    memoryAuthUser = userFrom(result)
-    return memoryAuthUser
+  const result = await client.auth.getCurrentUser()
+  if (!result.error && userFrom(result)) {
+    writePersistedAuthSession({
+      accessToken: persisted.accessToken || cookieRefresh.data?.accessToken || null,
+      refreshToken: persisted.refreshToken || cookieRefresh.data?.refreshToken || null,
+      user: userFrom(result),
+    })
+    return userFrom(result)
   }
 
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 150 * attempt))
-    const refreshed = await client.auth.refreshSession()
-    if (refreshed.error && !isTransientAuthError(refreshed.error)) break
-    if (refreshed.data?.user) {
-      memoryAuthUser = refreshed.data.user
-      writePersistedAuthSession({
-        accessToken: refreshed.data.accessToken,
-        refreshToken: refreshed.data.refreshToken,
-        user: refreshed.data.user,
-      })
-      return refreshed.data.user
-    }
-
-    result = await client.auth.getCurrentUser()
-    if (result.error && !isTransientAuthError(result.error)) throw result.error
-    if (userFrom(result)) {
-      memoryAuthUser = userFrom(result)
-      return memoryAuthUser
-    }
+  if (persisted.user) {
+    return persisted.user
   }
 
   return null
 }
 
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out. Check your network and try again.`)), ms)
+    }),
+  ])
+}
+
+function startBackgroundSessionRestore(client, persisted) {
+  if (restorePromise) return restorePromise
+
+  restorePromise = withTimeout(restoreAuthSession(client), 12000, 'Session restore')
+    .then((user) => {
+      if (user) {
+        memoryAuthUser = user
+        writePersistedAuthSession({ ...readPersistedAuthSession(), user })
+      }
+      return user
+    })
+    .catch((error) => {
+      console.warn('[auth] background session restore failed:', error.message)
+      return readPersistedAuthSession()?.user || null
+    })
+    .finally(() => {
+      restorePromise = null
+    })
+
+  return restorePromise
+}
+
+export async function ensureAuthSession(insforge) {
+  const client = insforge || requireInsforge()
+
+  if (memoryAuthUser) {
+    return memoryAuthUser
+  }
+
+  const persisted = readPersistedAuthSession()
+  if (persisted?.accessToken && persisted?.user) {
+    applyAuthSessionToClient(client, persisted)
+    memoryAuthUser = persisted.user
+    startBackgroundSessionRestore(client, persisted)
+    return persisted.user
+  }
+
+  if (!restorePromise) {
+    restorePromise = withTimeout(restoreAuthSession(client), 12000, 'Session restore')
+      .then((user) => {
+        memoryAuthUser = user
+        restorePromise = null
+        return user
+      })
+      .catch((error) => {
+        restorePromise = null
+        console.warn('[auth] session restore failed:', error.message)
+        const fallback = readPersistedAuthSession()?.user || null
+        memoryAuthUser = fallback
+        return fallback
+      })
+  }
+
+  return restorePromise
+}
+
 export async function loginWithRole(insforge, { email, password, role }) {
-  const { data, error } = await insforge.auth.signInWithPassword({ email, password })
+  memoryAuthUser = null
+  restorePromise = null
+
+  const { data, error } = await withTimeout(
+    insforge.auth.signInWithPassword({ email, password }),
+    25000,
+    'Sign in',
+  )
   if (error) throw error
 
   persistAuthSessionFromSignIn(data)
-  await resolveUserRole(insforge, { data, role, email })
 
-  // Profile rows are created during session bootstrap after redirect (faster login).
+  const signedInRole = data?.user?.profile?.role
+  if (signedInRole && signedInRole !== role) {
+    clearAuthSessionState(insforge)
+    throw new Error(
+      `Role mismatch. This account is registered as ${signedInRole}. Please use the correct portal.`,
+    )
+  }
+
+  if (signedInRole !== role) {
+    void resolveUserRole(insforge, { data, role, email }).catch((roleError) => {
+      console.warn('[auth] role sync deferred:', roleError.message)
+    })
+  } else {
+    clearPendingRole(email)
+  }
+
+  memoryAuthUser = data.user || null
   return data
 }
 
@@ -307,3 +388,5 @@ export function getVerificationGuidance(error) {
   }
   return null
 }
+
+export { hasPersistedAuthSession }

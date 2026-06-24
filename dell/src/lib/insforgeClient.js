@@ -14,7 +14,7 @@ export const insforge = isInsforgeConfigured
   ? createClient({
       baseUrl,
       anonKey,
-      timeout: 45000,
+      timeout: 25000,
       retryCount: 1,
     })
   : null

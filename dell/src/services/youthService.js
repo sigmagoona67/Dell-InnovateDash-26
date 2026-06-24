@@ -9,6 +9,12 @@ import {
   upsertAppProfileAfterAuth,
 } from '../lib/profileService'
 import { getQuestionnaire, reconcileYouthOnboardingStatus } from './questionnaireService'
+import {
+  readYouthBootstrapCache,
+  readYouthBootstrapMemory,
+  writeYouthBootstrapCache,
+  writeYouthBootstrapMemory,
+} from '../lib/youthBootstrapCache'
 
 export async function getCurrentAuthUser() {
   const user = await ensureAuthSession()
@@ -59,11 +65,23 @@ export function getYouthDestination(onboardingComplete) {
   return onboardingComplete ? '/youth-chat/portal' : '/youth-chat/onboarding'
 }
 
-export async function bootstrapYouthSession(source = 'unknown') {
+export async function bootstrapYouthSession(source = 'unknown', { preferCache = true } = {}) {
   console.log('[youth-auth] bootstrap start:', source)
 
   const insforge = requireInsforge()
   const user = await requireYouthUser()
+
+  const memoryCached = readYouthBootstrapMemory(user.id)
+  if (preferCache && memoryCached) {
+    return memoryCached
+  }
+
+  const cached = readYouthBootstrapCache()
+  if (preferCache && cached?.user?.id === user.id) {
+    writeYouthBootstrapMemory(user.id, cached)
+    return cached
+  }
+
   console.log('[youth-auth] current user id:', user.id)
   console.log('[youth-auth] auth profile role:', user.profile?.role || '(none)')
 
@@ -107,7 +125,7 @@ export async function bootstrapYouthSession(source = 'unknown') {
   const destination = getYouthDestination(onboardingComplete)
   console.log('[youth-auth] final route destination:', destination)
 
-  return {
+  const result = {
     user,
     profile,
     youth: reconciledYouth,
@@ -121,6 +139,11 @@ export async function bootstrapYouthSession(source = 'unknown') {
       profile.email.split('@')[0],
     destination,
   }
+
+  writeYouthBootstrapMemory(user.id, result)
+  writeYouthBootstrapCache(user.id, result)
+
+  return result
 }
 
 export async function loadYouthContext() {

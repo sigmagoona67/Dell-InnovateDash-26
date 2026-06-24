@@ -1,18 +1,43 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import AICompanion from '../../components/youth/AICompanion'
 import AssignedWorkerPanel from '../../components/youth/AssignedWorkerPanel'
 import ChatHistoryPanel from '../../components/youth/ChatHistoryPanel'
 import YouthSchedulePanel from '../../components/youth/YouthSchedulePanel'
 import YouthProfilePanel from '../../components/youth/YouthProfilePanel'
+import NewAssignmentDialog from '../../components/youth/NewAssignmentDialog'
+import ReassignmentPanel from '../../components/shared/ReassignmentPanel'
 import YouthSidebar from '../../components/youth/YouthSidebar'
 import { useYouthSession } from '../../context/YouthSessionContext'
+import { detectNewYouthAssignment } from '../../lib/youthAssignmentStorage'
 import { getAssignedWorkerView } from '../../services/youthService'
+
+const ASSIGNMENT_POLL_MS = 20000
+const PORTAL_SECTIONS = new Set([
+  'companion',
+  'history',
+  'schedule',
+  'worker',
+  'profile',
+  'reassignment',
+])
 
 export default function YouthPortal() {
   const { context, refresh } = useYouthSession()
-  const [activeSection, setActiveSection] = useState('companion')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const activeSection = PORTAL_SECTIONS.has(tabParam) ? tabParam : 'companion'
+  const [newAssignmentOpen, setNewAssignmentOpen] = useState(false)
+  const [assignmentEpoch, setAssignmentEpoch] = useState(0)
   const workerRefreshDone = useRef(false)
+
+  function setActiveSection(section) {
+    if (section === 'companion') {
+      setSearchParams({}, { replace: true })
+      return
+    }
+    setSearchParams({ tab: section }, { replace: true })
+  }
 
   useEffect(() => {
     if (activeSection !== 'worker') {
@@ -24,10 +49,39 @@ export default function YouthPortal() {
     refresh({ silent: true })
   }, [activeSection, refresh])
 
+  useEffect(() => {
+    if (!context?.youth?.id) return
+
+    if (detectNewYouthAssignment(context.youth.id, context.youth.assigned_staff_id)) {
+      setNewAssignmentOpen(true)
+      setAssignmentEpoch((value) => value + 1)
+    }
+  }, [context?.youth?.id, context?.youth?.assigned_staff_id])
+
+  useEffect(() => {
+    if (!context?.youth?.id) return undefined
+
+    const intervalId = window.setInterval(() => {
+      refresh({ silent: true })
+    }, ASSIGNMENT_POLL_MS)
+
+    return () => window.clearInterval(intervalId)
+  }, [context?.youth?.id, refresh])
+
   const workerView = useMemo(
     () => getAssignedWorkerView(context.youth, context.assignedStaff),
     [context],
   )
+
+  function handleViewWorker() {
+    setNewAssignmentOpen(false)
+    setActiveSection('worker')
+  }
+
+  function handleRequestReassignment() {
+    setNewAssignmentOpen(false)
+    setActiveSection('reassignment')
+  }
 
   return (
     <div className="relative flex min-h-dvh flex-col bg-slate-50 lg:flex-row">
@@ -56,6 +110,8 @@ export default function YouthPortal() {
             { id: 'history', label: '📅 History' },
             { id: 'schedule', label: '🗓️ Schedule' },
             { id: 'worker', label: '👩 Worker' },
+            { id: 'profile', label: '👤 Profile' },
+            { id: 'reassignment', label: '🔄 Reassign' },
           ].map((item) => (
             <button
               key={item.id}
@@ -93,8 +149,28 @@ export default function YouthPortal() {
             />
           )}
           {activeSection === 'profile' && <YouthProfilePanel youthId={context.youth.id} />}
+          {activeSection === 'reassignment' && (
+            <ReassignmentPanel
+              role="youth"
+              youthId={context.youth.id}
+              youthRow={context.youth}
+              youthName={context.displayName}
+              requesterProfileId={context.profile.id}
+              assignedStaffId={context.youth.assigned_staff_id}
+              canSubmit={workerView.hasAssignedWorker}
+              assignmentEpoch={assignmentEpoch}
+            />
+          )}
         </main>
       </div>
+
+      <NewAssignmentDialog
+        open={newAssignmentOpen}
+        workerName={workerView.hasAssignedWorker ? workerView.name : 'Your youth worker'}
+        onViewWorker={handleViewWorker}
+        onRequestReassignment={handleRequestReassignment}
+        onContinue={() => setNewAssignmentOpen(false)}
+      />
     </div>
   )
 }

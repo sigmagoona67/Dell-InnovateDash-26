@@ -1,27 +1,27 @@
 import { readPersistedAuthSession } from './authPersistence'
 
-const CACHE_KEY = 'carebridge-staff-bootstrap-v1'
+const CACHE_KEY = 'carebridge-youth-bootstrap-v1'
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
-let memoryStaffBootstrap = null
-let memoryStaffBootstrapUserId = null
+let memoryYouthBootstrap = null
+let memoryYouthBootstrapUserId = null
 
-export function readStaffBootstrapMemory(authUserId) {
-  if (!authUserId || memoryStaffBootstrapUserId !== authUserId) return null
-  return memoryStaffBootstrap
+export function readYouthBootstrapMemory(authUserId) {
+  if (!authUserId || memoryYouthBootstrapUserId !== authUserId) return null
+  return memoryYouthBootstrap
 }
 
-export function writeStaffBootstrapMemory(authUserId, context) {
-  memoryStaffBootstrap = context
-  memoryStaffBootstrapUserId = authUserId
+export function writeYouthBootstrapMemory(authUserId, context) {
+  memoryYouthBootstrap = context
+  memoryYouthBootstrapUserId = authUserId
 }
 
-export function clearStaffBootstrapMemory() {
-  memoryStaffBootstrap = null
-  memoryStaffBootstrapUserId = null
+export function clearYouthBootstrapMemory() {
+  memoryYouthBootstrap = null
+  memoryYouthBootstrapUserId = null
 }
 
-export function readStaffBootstrapCache() {
+export function readYouthBootstrapCache() {
   if (typeof window === 'undefined') return null
   try {
     const authUserId = readPersistedAuthSession()?.user?.id
@@ -40,7 +40,7 @@ export function readStaffBootstrapCache() {
   }
 }
 
-export function writeStaffBootstrapCache(authUserId, context) {
+export function writeYouthBootstrapCache(authUserId, context) {
   if (typeof window === 'undefined' || !authUserId || !context) return
   localStorage.setItem(
     CACHE_KEY,
@@ -52,8 +52,8 @@ export function writeStaffBootstrapCache(authUserId, context) {
   )
 }
 
-export function clearStaffBootstrapCache() {
+export function clearYouthBootstrapCache() {
   if (typeof window === 'undefined') return
   localStorage.removeItem(CACHE_KEY)
-  clearStaffBootstrapMemory()
+  clearYouthBootstrapMemory()
 }

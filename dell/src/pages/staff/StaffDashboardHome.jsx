@@ -111,7 +111,7 @@ export default function StaffDashboardHome() {
     <div className="relative flex min-h-dvh flex-col overflow-hidden bg-white lg:flex-row">
       <StaffSchedulePanel staffId={staffId} />
 
-      <div className="relative min-h-dvh flex-1 overflow-hidden pb-28 lg:pb-0">
+      <div className="relative flex min-h-dvh flex-1 flex-col overflow-y-auto pb-[calc(6.75rem+env(safe-area-inset-bottom,0px))]">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 top-0 h-96 w-96 rounded-full bg-sky-50 blur-3xl" />
         <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
@@ -165,7 +165,7 @@ export default function StaffDashboardHome() {
                 {dashboard?.assigned?.length ? (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {dashboard.assigned.map((youth) => (
-                      <AssignedYouthCard key={youth.id} youth={youth} />
+                      <AssignedYouthCard key={youth.id} youth={youth} onReleased={loadDashboard} />
                     ))}
                   </div>
                 ) : (
@@ -182,7 +182,7 @@ export default function StaffDashboardHome() {
             )}
 
             {showPending && (
-              <section>
+              <section className="pb-2">
                 <h2 className="mb-4 text-xl font-bold text-slate-800">Pending Assignment</h2>
 
                 {dashboard?.pendingDebug?.error && (
@@ -191,9 +191,17 @@ export default function StaffDashboardHome() {
                   </p>
                 )}
 
+                {dashboard?.pendingDebug?.buildError && (
+                  <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Pending youth loaded from backend ({dashboard.pendingDebug.rawCount}) but some details could not be
+                    loaded. Cards are shown in simplified form.
+                  </p>
+                )}
+
                 {dashboard?.pendingDebug?.isEmpty && !dashboard?.pendingDebug?.error && (
                   <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    No pending youth returned from backend
+                    No unassigned youth in the pool right now. If you expected more, check InsForge RLS policies for
+                    staff read access to unassigned youth.
                   </p>
                 )}
 

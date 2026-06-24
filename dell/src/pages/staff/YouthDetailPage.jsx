@@ -4,12 +4,20 @@ import CaseTimelineTab from '../../components/staff/CaseTimelineTab'
 import CharacteristicsTab from '../../components/staff/CharacteristicsTab'
 import OfflineSessionTab from '../../components/staff/OfflineSessionTab'
 import YouthScheduleTab from '../../components/staff/YouthScheduleTab'
+import ReleaseCaseDialog from '../../components/staff/ReleaseCaseDialog'
 import StaffSidebar from '../../components/staff/StaffSidebar'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
 import { useStaffSession } from '../../context/StaffSessionContext'
 import { resolveCurrentConcern, resolveCasePreview } from '../../lib/dashboardCard'
 import { resolveYouthRiskLevel } from '../../lib/riskResolver'
-import { assignYouthToMe, canStaffEditYouth, getYouthDetail, markYouthScheduleViewed, markYouthTimelineViewed } from '../../services/staffService'
+import {
+  assignYouthToMe,
+  canStaffEditYouth,
+  getYouthDetail,
+  markYouthScheduleViewed,
+  markYouthTimelineViewed,
+  releaseYouthCase,
+} from '../../services/staffService'
 
 export default function YouthDetailPage() {
   const { youthId } = useParams()
@@ -21,6 +29,8 @@ export default function YouthDetailPage() {
   const [assigning, setAssigning] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [dataVersion, setDataVersion] = useState(0)
+  const [releaseDialogOpen, setReleaseDialogOpen] = useState(false)
+  const [releasing, setReleasing] = useState(false)
 
   const loadDetail = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
@@ -83,6 +93,20 @@ export default function YouthDetailPage() {
     }
   }
 
+  async function handleReleaseCase() {
+    setReleasing(true)
+    setErrorMessage('')
+    try {
+      await releaseYouthCase(youthId)
+      setReleaseDialogOpen(false)
+      navigate('/staff-dashboard')
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to release case.')
+    } finally {
+      setReleasing(false)
+    }
+  }
+
   const staffName = context?.staffProfile?.display_name || 'Staff'
 
   const staffProfileId = context?.staffProfile?.id
@@ -117,6 +141,16 @@ export default function YouthDetailPage() {
         staffName={staffName}
         youthName={detail.name}
         onBack={() => navigate('/staff-dashboard')}
+        onReleaseCase={() => setReleaseDialogOpen(true)}
+        canReleaseCase={canManageCase && !detail.isPending}
+      />
+
+      <ReleaseCaseDialog
+        open={releaseDialogOpen}
+        youthName={detail.name}
+        releasing={releasing}
+        onConfirm={handleReleaseCase}
+        onCancel={() => setReleaseDialogOpen(false)}
       />
 
       <div className="relative z-10 flex flex-1 flex-col">
@@ -138,6 +172,16 @@ export default function YouthDetailPage() {
               {item.label}
             </button>
           ))}
+
+          {canManageCase && !detail.isPending && (
+            <button
+              type="button"
+              onClick={() => setReleaseDialogOpen(true)}
+              className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-rose-600 lg:hidden"
+            >
+              📤 Release
+            </button>
+          )}
         </div>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
