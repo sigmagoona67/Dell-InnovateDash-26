@@ -1,28 +1,37 @@
 import { useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import { CheckCircle2, CheckSquare, ChevronLeft, ChevronRight, Circle, Square } from 'lucide-react'
 import { useYouthSession } from '../../context/YouthSessionContext'
 import { ONBOARDING_SECTIONS } from '../../lib/youthMockData'
 import { completeOnboarding } from '../../services/questionnaireService'
 import AiTagPicker from '../../components/youth/AiTagPicker'
 import PersonalityScales from '../../components/youth/PersonalityScales'
+import Button from '../../components/ui/Button'
+import Card from '../../components/ui/Card'
+import Textarea from '../../components/ui/Textarea'
 
 function OptionChip({ label, selected, onToggle, type = 'multiple' }) {
+  const Icon = type === 'single'
+    ? (selected ? CheckCircle2 : Circle)
+    : (selected ? CheckSquare : Square)
+
   return (
     <button
       type="button"
       onClick={onToggle}
       className={`
-        rounded-2xl border px-4 py-3 text-left text-sm font-medium transition-all duration-200
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2
+        inline-flex items-center gap-2 rounded-control border px-4 py-3 text-left text-sm font-medium transition
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2
         ${selected
-          ? 'border-teal-400 bg-teal-50 text-teal-700 shadow-sm'
-          : 'border-slate-200 bg-white text-slate-700 hover:border-teal-200 hover:bg-teal-50/50'}
+          ? 'border-teal-500 bg-teal-50 text-teal-600'
+          : 'border-slate-200 bg-white text-slate-800 hover:border-teal-100 hover:bg-teal-50'}
       `}
       aria-pressed={selected}
     >
-      <span className="mr-2 inline-block w-4">
-        {type === 'single' ? (selected ? '●' : '○') : selected ? '☑' : '☐'}
-      </span>
+      <Icon
+        className={`h-4 w-4 shrink-0 ${selected ? '' : 'text-slate-400'}`}
+        aria-hidden="true"
+      />
       {label}
     </button>
   )
@@ -97,12 +106,15 @@ export default function YouthOnboarding() {
   function renderSectionInput() {
     if (section.type === 'textarea') {
       return (
-        <textarea
+        <Textarea
+          label={section.title}
+          srLabel
+          accent="teal"
           value={answers[section.id] || ''}
           onChange={(event) => setNotes(event.target.value)}
           rows={8}
           placeholder="Share anything that would help us support you better..."
-          className="w-full flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-teal-400"
+          className="flex-1"
         />
       )
     }
@@ -159,12 +171,18 @@ export default function YouthOnboarding() {
 
       <main className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10 sm:px-8">
         <header className="mb-8">
-          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-teal-100 bg-teal-50/80 px-4 py-1.5 text-sm font-medium text-teal-600">
+          <p className="mb-3 inline-flex items-center gap-2 rounded-pill border border-teal-100 bg-teal-50 px-4 py-1.5 text-sm font-medium text-teal-600">
             CareBridge AI · Getting to know you
           </p>
-          <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="mb-4 h-2 overflow-hidden rounded-pill bg-slate-100"
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
             <div
-              className="h-full rounded-full bg-gradient-to-r from-teal-400 to-sky-400 transition-all duration-500"
+              className="h-full rounded-pill bg-gradient-to-r from-teal-500 to-sky-500 transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -174,13 +192,13 @@ export default function YouthOnboarding() {
         </header>
 
         {errorMessage && (
-          <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <p role="alert" className="mb-4 rounded-control bg-danger-100 px-4 py-3 text-sm text-danger-700">
             {errorMessage}
           </p>
         )}
 
-        <section className="flex flex-1 flex-col rounded-3xl border border-slate-100 bg-white p-6 shadow-[0_8px_36px_-14px_rgba(45,90,110,0.12)] sm:p-8">
-          <h1 className="mb-2 text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
+        <Card padding="lg" as="section" className="flex flex-1 flex-col">
+          <h1 className="mb-2 font-display text-2xl font-bold tracking-tight text-ink-800 sm:text-3xl">
             {section.title}
           </h1>
           <p className="mb-8 text-slate-600">{section.subtitle}</p>
@@ -189,25 +207,17 @@ export default function YouthOnboarding() {
 
           <div className="mt-10 flex items-center justify-end gap-3">
             {!isFirst && (
-              <button
-                type="button"
-                onClick={handlePrevious}
-                disabled={loading}
-                className="rounded-2xl px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-              >
-                &lt; Previous
-              </button>
+              <Button type="button" variant="ghost" accent="teal" onClick={handlePrevious} disabled={loading}>
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                Previous
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={loading}
-              className="rounded-2xl bg-teal-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 disabled:opacity-70"
-            >
-              {loading ? 'Saving...' : isLast ? 'Submit' : 'Next >'}
-            </button>
+            <Button type="button" accent="teal" onClick={handleNext} loading={loading}>
+              {isLast ? 'Submit' : 'Next'}
+              {!isLast && <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+            </Button>
           </div>
-        </section>
+        </Card>
       </main>
     </div>
   )

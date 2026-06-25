@@ -50,10 +50,10 @@ export default function PersonalityScales({ value = [], onChange }) {
       </p>
 
       {scales.map((scale) => (
-        <div key={scale.id} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5">
+        <div key={scale.id} className="rounded-card border border-slate-200 bg-slate-50 p-4 sm:p-5">
           <div className="mb-3 flex items-center justify-between gap-3 text-sm font-medium">
             <span className="text-slate-600">{scale.left}</span>
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-teal-700 ring-1 ring-teal-100">
+            <span className="rounded-pill bg-white px-3 py-1 text-xs font-semibold text-teal-600 ring-1 ring-teal-100">
               {scaleLabel(scale, scale.value)}
             </span>
             <span className="text-slate-600">{scale.right}</span>
@@ -66,7 +66,7 @@ export default function PersonalityScales({ value = [], onChange }) {
             step={1}
             value={scale.value}
             onChange={(event) => updateScale(scale.id, Number(event.target.value))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-sky-200 via-teal-200 to-teal-400 accent-teal-500"
+            className="h-2 w-full cursor-pointer appearance-none rounded-pill bg-gradient-to-r from-sky-100 via-teal-100 to-teal-500 accent-teal-500"
             aria-label={`${scale.left} to ${scale.right}`}
           />
 

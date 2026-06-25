@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import AiTagPicker from '../../components/youth/AiTagPicker'
 import PersonalityScales from '../../components/youth/PersonalityScales'
+import Button from '../../components/ui/Button'
+import Card from '../../components/ui/Card'
+import Textarea from '../../components/ui/Textarea'
+import Skeleton from '../../components/ui/Skeleton'
 import { useStaffSession } from '../../context/StaffSessionContext'
 import { STAFF_QUIZ_SECTIONS } from '../../lib/staffOnboardingConfig'
 import { suggestStaffQuizOptions } from '../../services/staffQuizAiService'
@@ -99,12 +104,15 @@ export default function StaffProfileQuiz() {
   function renderSectionInput() {
     if (section.type === 'textarea') {
       return (
-        <textarea
+        <Textarea
+          label={section.title}
+          srLabel
+          accent="sky"
           value={answers[section.id] || ''}
           onChange={(event) => setSectionAnswer(event.target.value)}
           rows={8}
           placeholder="Share anything that helps us match you with the right youth…"
-          className="w-full flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-sky-400"
+          className="flex-1"
         />
       )
     }
@@ -138,8 +146,15 @@ export default function StaffProfileQuiz() {
 
   if (loadingInitial) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-white px-6">
-        <p className="text-slate-600">Loading your profile quiz…</p>
+      <div className="relative flex min-h-dvh flex-col overflow-hidden bg-white">
+        <main className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10 sm:px-8">
+          <div role="status" aria-live="polite" className="flex flex-col gap-4">
+            <span className="sr-only">Loading your profile quiz…</span>
+            <Skeleton variant="line" className="w-48" />
+            <Skeleton variant="line" className="h-2 w-full" />
+            <Skeleton variant="block" className="h-72 w-full" />
+          </div>
+        </main>
       </div>
     )
   }
@@ -154,19 +169,25 @@ export default function StaffProfileQuiz() {
       <main className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10 sm:px-8">
         <header className="mb-8">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50/80 px-4 py-1.5 text-sm font-medium text-sky-600">
+            <p className="inline-flex items-center gap-2 rounded-pill border border-sky-100 bg-sky-50 px-4 py-1.5 text-sm font-medium text-sky-600">
               CareBridge AI · Staff Profile Quiz
             </p>
             {quizCompleted && (
               <Link
                 to="/staff-dashboard"
-                className="text-sm font-medium text-sky-600 hover:text-sky-700"
+                className="text-sm font-medium text-sky-600 hover:text-ink-800"
               >
                 Back to dashboard
               </Link>
             )}
           </div>
-          <div className="mb-4 h-2 overflow-hidden rounded-pill bg-slate-100">
+          <div
+            className="mb-4 h-2 overflow-hidden rounded-pill bg-slate-100"
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
             <div
               className="h-full rounded-pill bg-sky-500 transition-all duration-500"
               style={{ width: `${progress}%` }}
@@ -179,16 +200,13 @@ export default function StaffProfileQuiz() {
         </header>
 
         {errorMessage && (
-          <p
-            role="alert"
-            className="mb-4 rounded-card border border-danger-100 bg-danger-100/50 px-4 py-3 text-[13px] text-danger-700"
-          >
+          <p role="alert" className="mb-4 rounded-control bg-danger-100 px-4 py-3 text-sm text-danger-700">
             {errorMessage}
           </p>
         )}
 
-        <section className="flex flex-1 flex-col rounded-3xl border border-slate-100 bg-white p-6 shadow-[0_8px_36px_-14px_rgba(45,90,110,0.12)] sm:p-8">
-          <h1 className="mb-2 text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
+        <Card padding="lg" as="section" className="flex flex-1 flex-col">
+          <h1 className="mb-2 font-display text-2xl font-bold tracking-tight text-ink-800 sm:text-3xl">
             {section.title}
           </h1>
           <p className="mb-8 text-slate-600">{section.subtitle}</p>
@@ -197,25 +215,17 @@ export default function StaffProfileQuiz() {
 
           <div className="mt-10 flex items-center justify-end gap-3">
             {!isFirst && (
-              <button
-                type="button"
-                onClick={handlePrevious}
-                disabled={loading}
-                className="rounded-2xl px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-              >
-                &lt; Previous
-              </button>
+              <Button type="button" variant="ghost" accent="sky" onClick={handlePrevious} disabled={loading}>
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                Previous
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={loading}
-              className="rounded-2xl bg-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:opacity-70"
-            >
-              {loading ? 'Saving...' : isLast ? (isEditing ? 'Save changes' : 'Complete quiz') : 'Next >'}
-            </button>
+            <Button type="button" accent="sky" onClick={handleNext} loading={loading}>
+              {isLast ? (isEditing ? 'Save changes' : 'Complete quiz') : 'Next'}
+              {!isLast && <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+            </Button>
           </div>
-        </section>
+        </Card>
       </main>
     </div>
   )

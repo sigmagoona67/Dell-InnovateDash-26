@@ -1,29 +1,35 @@
 import { useCallback, useState } from 'react'
+import { Check, Plus, Sparkles } from 'lucide-react'
 import { suggestOnboardingOptions } from '../../services/onboardingAiService'
+import Button from '../ui/Button'
 
 function OptionChip({ label, selected, onToggle, accent = 'teal' }) {
   const selectedClass =
     accent === 'sky'
-      ? 'border-sky-400 bg-sky-50 text-sky-700 shadow-sm'
-      : 'border-teal-400 bg-teal-50 text-teal-700 shadow-sm'
+      ? 'border-sky-500 bg-sky-50 text-sky-600'
+      : 'border-teal-500 bg-teal-50 text-teal-600'
   const idleClass =
     accent === 'sky'
-      ? 'border-slate-200 bg-white text-slate-700 hover:border-sky-200 hover:bg-sky-50/50'
-      : 'border-slate-200 bg-white text-slate-700 hover:border-teal-200 hover:bg-teal-50/50'
-  const ringClass = accent === 'sky' ? 'focus-visible:ring-sky-400' : 'focus-visible:ring-teal-400'
+      ? 'border-slate-200 bg-white text-slate-800 hover:border-sky-100 hover:bg-sky-50'
+      : 'border-slate-200 bg-white text-slate-800 hover:border-teal-100 hover:bg-teal-50'
+  const ringClass = accent === 'sky' ? 'focus-visible:ring-sky-500' : 'focus-visible:ring-teal-500'
 
   return (
     <button
       type="button"
       onClick={onToggle}
       className={`
-        rounded-2xl border px-4 py-2.5 text-left text-sm font-medium transition-all duration-200
+        inline-flex items-center gap-2 rounded-control border px-4 py-2.5 text-left text-sm font-medium transition
         focus-visible:outline-none focus-visible:ring-2 ${ringClass} focus-visible:ring-offset-2
         ${selected ? selectedClass : idleClass}
       `}
       aria-pressed={selected}
     >
-      <span className="mr-2 inline-block w-4">{selected ? '☑' : '☐'}</span>
+      {selected ? (
+        <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+      ) : (
+        <Plus className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+      )}
       {label}
     </button>
   )
@@ -84,6 +90,8 @@ export default function AiTagPicker({
     }
   }
 
+  const ringClass = accent === 'sky' ? 'focus-visible:ring-sky-500' : 'focus-visible:ring-teal-500'
+
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div>
@@ -98,29 +106,32 @@ export default function AiTagPicker({
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className={`flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 ${accent === 'sky' ? 'focus-visible:ring-sky-400' : 'focus-visible:ring-teal-400'}`}
+            className={`flex-1 rounded-control border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-offset-2 ${ringClass}`}
           />
-          <button
+          <Button
             type="button"
+            accent={accent}
             onClick={handleSuggest}
-            disabled={loading || !input.trim()}
-            className={`shrink-0 rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${accent === 'sky' ? 'bg-sky-500 hover:bg-sky-600 focus-visible:ring-sky-400' : 'bg-teal-500 hover:bg-teal-600 focus-visible:ring-teal-400'}`}
+            loading={loading}
+            disabled={!input.trim()}
+            className="shrink-0"
           >
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
             {loading ? 'Thinking…' : 'Show options'}
-          </button>
+          </Button>
         </div>
         {hint && <p className="mt-2 text-sm text-slate-500">{hint}</p>}
       </div>
 
       {error && (
-        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <p role="alert" className="rounded-control bg-danger-100 px-4 py-3 text-sm text-danger-700">
           {error}
         </p>
       )}
 
       {suggestions.length > 0 && (
         <div>
-          <p className="mb-3 text-sm font-semibold text-slate-700">Suggested options</p>
+          <p className="mb-3 text-sm font-semibold text-slate-600">Suggested options</p>
           <div className="flex flex-wrap gap-2">
             {suggestions.map((option) => (
               <OptionChip
@@ -132,15 +143,17 @@ export default function AiTagPicker({
               />
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-400">
-            Tap any that fit you. Type more above and click Show options for fresh suggestions.
+          <p className="mt-2 text-sm text-slate-500">
+            Tap any that fit you. Type more above and tap Show options for fresh suggestions.
           </p>
         </div>
       )}
 
       {selected.length > 0 && (
         <div>
-          <p className={`mb-3 text-sm font-semibold ${accent === 'sky' ? 'text-sky-700' : 'text-teal-700'}`}>Your selections</p>
+          <p className={`mb-3 text-sm font-semibold ${accent === 'sky' ? 'text-sky-600' : 'text-teal-600'}`}>
+            Your selections
+          </p>
           <div className="flex flex-wrap gap-2">
             {selected.map((option) => (
               <OptionChip
