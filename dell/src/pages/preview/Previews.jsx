@@ -6,6 +6,8 @@ import QuietSignalPanel from '../../components/staff/QuietSignalPanel'
 import StaffNav from '../../components/staff/StaffNav'
 import UrgentAlertsPanel from '../../components/staff/UrgentAlertsPanel'
 import MicroInterventionCard from '../../components/youth/MicroInterventionCard'
+import MoodHeatmap from '../../components/youth/MoodHeatmap'
+import { buildMoodYearMock } from '../../lib/moodHeatmap'
 
 const MOCK_ALERTS = [
   {
@@ -78,6 +80,31 @@ export function QuietSignalPreview() {
       </header>
       <QuietSignalPanel />
     </StaffFrame>
+  )
+}
+
+export function MoodHeatmapPreview() {
+  const entries = buildMoodYearMock(new Date())
+  return (
+    <div className="relative min-h-dvh overflow-hidden bg-slate-50 px-6 py-12">
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <header className="mb-6">
+          <p className="text-[12px] font-medium uppercase tracking-wide text-teal-600">Feature spotlight</p>
+          <h1 className="mt-1 font-display text-[30px] font-bold leading-[1.1] text-ink-800">
+            A year in moods
+          </h1>
+          <p className="mt-2 max-w-2xl text-[15px] text-slate-600">
+            Each day graded by mood + AI sentiment. The drift is visible at a glance — the grid cools
+            and thins out in the final weeks, right before the Quiet Signal fires.
+          </p>
+        </header>
+        <MoodHeatmap
+          entriesByDate={entries}
+          title="Maya’s year in check-ins"
+          subtitle="Warmer squares are heavier days; teal are brighter ones; grey means no check-in."
+        />
+      </div>
+    </div>
   )
 }
 
