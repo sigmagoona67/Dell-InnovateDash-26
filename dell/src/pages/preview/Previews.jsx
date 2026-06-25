@@ -108,6 +108,74 @@ export function MoodHeatmapPreview() {
   )
 }
 
+// Mirrors the youth ChatHistoryPanel heatmap card (expanded state): 90-day
+// window, reframed copy, "Want to talk now?" action — phone-width frame.
+export function MoodYouthPreview() {
+  const entries = buildMoodYearMock(new Date())
+  return (
+    <div className="relative min-h-dvh overflow-hidden bg-gradient-to-b from-teal-50 via-white to-sky-50 px-6 py-12">
+      <div className="relative z-10 mx-auto max-w-xl">
+        <p className="mb-3 text-[12px] font-medium uppercase tracking-wide text-teal-600">
+          Youth · History tab (consensus design)
+        </p>
+        <section className="rounded-card border border-slate-200 bg-white shadow-card">
+          <div className="p-5 sm:p-6">
+            <MoodHeatmap
+              entriesByDate={entries}
+              weeks={13}
+              tooltipMode="warm"
+              showCount={false}
+              title="Every time you reached out"
+              subtitle="Each square is a day you checked in — that took something. Quieter days and brighter days are all part of your story, and grey just means a day off. Rest is okay."
+              legendLow="quieter day"
+              legendHigh="brighter day"
+              noCheckInLabel="a day off — that's okay"
+            />
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <span className="text-[13px] font-medium text-teal-700 underline-offset-2">See my whole year</span>
+              <span className="text-[13px] font-medium text-slate-400">Close</span>
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-card bg-teal-50 px-4 py-3">
+              <p className="text-[14px] text-teal-800">Want to talk now?</p>
+              <span className="shrink-0 rounded-pill bg-teal-600 px-4 py-2 text-[13px] font-semibold text-white">
+                Talk to your companion
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+// Mirrors the staff CaseTimelineTab heatmap section: full 53-week clinical
+// fidelity, drift-bound subtitle, right-edge scroll fade.
+export function MoodStaffPreview() {
+  const entries = buildMoodYearMock(new Date())
+  return (
+    <div className="relative min-h-dvh overflow-hidden bg-slate-50 px-6 py-12">
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <p className="mb-3 text-[12px] font-medium uppercase tracking-wide text-sky-600">
+          Staff · Youth detail → Case Timeline (consensus design)
+        </p>
+        <div className="relative">
+          <MoodHeatmap
+            entriesByDate={entries}
+            weeks={53}
+            tooltipMode="clinical"
+            title="Mood over the past year"
+            subtitle="Warmer = heavier day; teal = brighter. Cooling and thinning in recent weeks signals drift."
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-card bg-gradient-to-l from-white to-transparent"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function YouthJitaiPreview() {
   return (
     <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-b from-teal-50 via-white to-sky-50 px-6 py-12">

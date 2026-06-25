@@ -72,7 +72,12 @@ export default function YouthPortal() {
           {activeSection === 'companion' && (
             <AICompanion youthId={context.youth.id} youthName={context.displayName} />
           )}
-          {activeSection === 'history' && <ChatHistoryPanel youthId={context.youth.id} />}
+          {activeSection === 'history' && (
+            <ChatHistoryPanel
+              youthId={context.youth.id}
+              onTalkNow={() => setActiveSection('companion')}
+            />
+          )}
           {activeSection === 'worker' && <AssignedWorkerPanel workerView={workerView} />}
         </main>
       </div>

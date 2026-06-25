@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { requireInsforge } from '../../lib/insforgeClient'
 import { getSessionMessages, mapMessagesForUi } from '../../services/chatService'
+import { buildMoodYearMock, gradeDay, normalizeMood } from '../../lib/moodHeatmap'
+import MoodHeatmap from '../youth/MoodHeatmap'
 import CaseTimelineCalendar from './CaseTimelineCalendar'
 import { RiskBadge } from '../ui'
 
@@ -83,6 +85,23 @@ export default function CaseTimelineTab({ detail }) {
     const ai = aiSessions.map((s) => ({ ...s, type: 'ai' }))
     return [...ai, ...offlineSessions].sort((a, b) => new Date(b.session_date) - new Date(a.session_date))
   }, [aiSessions, offlineSessions])
+
+  // Mood heatmap — ZERO new query: reuse the already-in-memory aiSessions.
+  // (youth_id, session_date) is unique, so no aggregation needed. Staff carries
+  // ai_summary as the tooltip text (load-bearing for next-morning follow-up and
+  // the sentiment nudge). Falls back to the mock when there's nothing gradeable
+  // so the grid is never an empty grey wall.
+  const moodEntries = useMemo(() => {
+    const entries = Object.fromEntries(
+      aiSessions.map((s) => [
+        s.session_date,
+        { mood: normalizeMood(s.mood_check_in), text: s.ai_summary || undefined },
+      ]),
+    )
+    const hasGradeable = Object.values(entries).some((e) => gradeDay(e))
+    return hasGradeable ? entries : buildMoodYearMock(now)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiSessions])
 
   const filteredEvents = useMemo(() => {
     if (filter === 'ai') return allEvents.filter((e) => e.type === 'ai')
@@ -172,6 +191,23 @@ export default function CaseTimelineTab({ detail }) {
           {sessionsError}
         </p>
       )}
+
+      {/* Mood-intensity year trend — full clinical fidelity, expanded by default,
+          bound to the Quiet Signal's five-label scale. Soft right-edge fade hints
+          the 53-week grid scrolls horizontally. */}
+      <div className="relative">
+        <MoodHeatmap
+          entriesByDate={moodEntries}
+          weeks={53}
+          tooltipMode="clinical"
+          title="Mood over the past year"
+          subtitle="Warmer = heavier day; teal = brighter. Cooling and thinning in recent weeks signals drift."
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-card bg-gradient-to-l from-white to-transparent"
+        />
+      </div>
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <div className="lg:w-80 lg:shrink-0">

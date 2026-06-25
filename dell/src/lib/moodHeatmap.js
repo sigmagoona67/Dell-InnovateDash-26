@@ -30,10 +30,31 @@ function sentimentDelta(text) {
   return 0
 }
 
-// Grade one day. mood is required-ish; text optionally refines it via sentiment.
+// The five canonical mood labels the app writes (AICompanion.recordMood ->
+// mood.label). Used to defensively normalise whatever is stored in
+// mood_check_in before grading, so the two mapping sites (youth + staff)
+// cannot drift apart.
+const CANONICAL_MOODS = ['Good', 'Okay', 'Sad', 'Stressed', 'Overwhelmed']
+const MOOD_LOOKUP = Object.fromEntries(CANONICAL_MOODS.map((m) => [m.toLowerCase(), m]))
+
+// Trim / case-fold a stored mood value to one of the five canonical labels.
+// Returns undefined when the value is missing or unrecognised — callers should
+// still keep the entry object (presence) so gradeDay can grade it as PRESENT.
+export function normalizeMood(value) {
+  if (value == null) return undefined
+  const key = String(value).trim().toLowerCase()
+  return MOOD_LOOKUP[key]
+}
+
+// Grade one day. An entry object means the youth SHOWED UP that day.
+// - recognised mood   -> graded 1..5 (refined by sentiment of any text)
+// - present but mood unmappable -> grade 3 (PRESENT / "you showed up"),
+//   NEVER null. Silently rendering a real check-in as "never showed up" is the
+//   worst failure mode for this audience, so presence always beats grey.
+// - no entry at all    -> null (genuinely no check-in; rendered grey by caller)
 export function gradeDay({ mood, text } = {}) {
-  const base = MOOD_GRADE[mood] ?? (text ? 3 : null)
-  if (base == null) return null
+  const canonical = normalizeMood(mood)
+  const base = MOOD_GRADE[canonical] ?? 3 // present-but-unmappable -> PRESENT
   return Math.max(1, Math.min(5, base + sentimentDelta(text)))
 }
 

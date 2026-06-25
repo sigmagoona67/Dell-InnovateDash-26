@@ -67,6 +67,25 @@ export async function getSessionsForMonth(youthId, year, month) {
   return data || []
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// A year (or window) of mood for the "Year in moods" heatmap. One indexed query,
+// only the two columns the grid needs. Default ~98 days (~14 weeks) covers the
+// youth 90-day default window; pass days~=371 for the full-year opt-in.
+export async function getMoodYear(youthId, { now = new Date(), days = 98 } = {}) {
+  const start = new Date(now.getTime() - days * DAY_MS).toISOString().slice(0, 10)
+
+  const { data, error } = await db()
+    .from('ai_chat_sessions')
+    .select('session_date, mood_check_in')
+    .eq('youth_id', youthId)
+    .gte('session_date', start)
+    .order('session_date', { ascending: true })
+
+  if (error) throw error
+  return data || []
+}
+
 export async function getSessionByDate(youthId, sessionDate) {
   const { data, error } = await db()
     .from('ai_chat_sessions')
