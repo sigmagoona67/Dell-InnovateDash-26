@@ -32,7 +32,7 @@ const HELPLINES = [
   },
 ]
 
-function CrisisSheet({ onClose }) {
+export function CrisisSheet({ onClose }) {
   const titleId = useId()
   const closeRef = useRef(null)
 

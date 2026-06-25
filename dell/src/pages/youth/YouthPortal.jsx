@@ -4,6 +4,7 @@ import { CalendarDays, MessageCircleHeart, UserRound } from 'lucide-react'
 import AICompanion from '../../components/youth/AICompanion'
 import AssignedWorkerPanel from '../../components/youth/AssignedWorkerPanel'
 import ChatHistoryPanel from '../../components/youth/ChatHistoryPanel'
+import QuietSignalNudge from '../../components/youth/QuietSignalNudge'
 import YouthSidebar from '../../components/youth/YouthSidebar'
 import { useYouthSession } from '../../context/YouthSessionContext'
 import { getAssignedWorkerView } from '../../services/youthService'
@@ -75,6 +76,12 @@ export default function YouthPortal() {
           {activeSection === 'worker' && <AssignedWorkerPanel workerView={workerView} />}
         </main>
       </div>
+
+      <QuietSignalNudge
+        youthId={context.youth.id}
+        youthName={context.displayName}
+        onBreathe={() => setActiveSection('companion')}
+      />
     </div>
   )
 }
