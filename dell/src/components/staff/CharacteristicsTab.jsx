@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { requireInsforge } from '../../lib/insforgeClient'
 import { normalizeQuestionnaireRow } from '../../services/questionnaireService'
 import { InfoCard, TagSection } from './TagSection'
-import RiskBadge from './RiskBadge'
+import { RiskBadge, Skeleton } from '../ui'
 
 export default function CharacteristicsTab({ detail }) {
   const youthId = detail?.youth?.id
@@ -13,8 +13,6 @@ export default function CharacteristicsTab({ detail }) {
   const [loadingQuestionnaire, setLoadingQuestionnaire] = useState(true)
 
   useEffect(() => {
-    console.log('CharacteristicsTab loaded youth detail object:', detail)
-
     if (!youthId) {
       setQuestionnaireError('Missing youth id on detail object')
       setLoadingQuestionnaire(false)
@@ -33,43 +31,23 @@ export default function CharacteristicsTab({ detail }) {
         .eq('youth_id', youthId)
         .maybeSingle()
 
-      console.log('Staff questionnaire result:', data, error)
-
       if (cancelled) return
 
       if (error) {
-        if (
-          String(error.message || '').toLowerCase().includes('does not exist') ||
-          error.status === 404
-        ) {
-          setQuestionnaireError('Database setup incomplete. Please contact your administrator.')
-        } else {
-          setQuestionnaireError(error.message || 'Failed to load questionnaire')
-        }
+        if (import.meta.env.DEV) console.debug('[staff] questionnaire load error', error?.message)
+        setQuestionnaireError('This profile is unavailable right now. Please try again shortly.')
         setLoadingQuestionnaire(false)
         return
       }
 
       if (!data) {
         setQuestionnaire(null)
-        setQuestionnaireError(
-          'No questionnaire record found for this youth. If onboarding was completed, staff read access may be missing — run migrations/20260610330000_carebridge-staff-read-access.sql in InsForge SQL Editor.',
-        )
+        setQuestionnaireError('This youth has not completed their profile questionnaire yet.')
         setLoadingQuestionnaire(false)
         return
       }
 
       const normalized = normalizeQuestionnaireRow(data)
-      const mappedProfile = {
-        interests: normalized.interests,
-        personality: normalized.personality,
-        preferred_communication_style: normalized.preferred_communication_style,
-        living_arrangement: normalized.living_arrangement,
-        current_challenges: normalized.current_challenges,
-        coping_methods: normalized.coping_methods,
-      }
-
-      console.log('CharacteristicsTab mapped Youth Profile fields:', mappedProfile)
 
       setQuestionnaire(normalized)
       setLoadingQuestionnaire(false)
@@ -105,11 +83,18 @@ export default function CharacteristicsTab({ detail }) {
         </header>
 
         {loadingQuestionnaire && (
-          <p className="mb-4 text-sm text-slate-500">Loading questionnaire from backend…</p>
+          <div aria-live="polite" aria-busy="true" className="mb-4 space-y-2">
+            <span className="sr-only">Loading youth profile…</span>
+            <Skeleton variant="line" className="w-3/4" />
+            <Skeleton variant="line" className="w-1/2" />
+          </div>
         )}
 
         {questionnaireError && (
-          <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <p
+            role="status"
+            className="mb-4 rounded-card border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] text-slate-600"
+          >
             {questionnaireError}
           </p>
         )}

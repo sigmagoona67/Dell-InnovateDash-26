@@ -166,9 +166,9 @@ export default function StaffProfileQuiz() {
               </Link>
             )}
           </div>
-          <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div className="mb-4 h-2 overflow-hidden rounded-pill bg-slate-100">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-sky-400 to-teal-400 transition-all duration-500"
+              className="h-full rounded-pill bg-sky-500 transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -179,7 +179,10 @@ export default function StaffProfileQuiz() {
         </header>
 
         {errorMessage && (
-          <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <p
+            role="alert"
+            className="mb-4 rounded-card border border-danger-100 bg-danger-100/50 px-4 py-3 text-[13px] text-danger-700"
+          >
             {errorMessage}
           </p>
         )}

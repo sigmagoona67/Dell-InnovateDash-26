@@ -62,8 +62,12 @@ export function YouthAuthGate({ children }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-white px-6">
-        <p className="text-slate-600">Loading your safe space...</p>
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex min-h-dvh items-center justify-center bg-white px-6"
+      >
+        <p className="text-[15px] text-slate-600">Getting your space ready…</p>
       </div>
     )
   }

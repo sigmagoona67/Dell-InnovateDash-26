@@ -46,6 +46,21 @@ function pickRiskLevel(sessions, insights) {
   return 'low'
 }
 
+function relativeTimeLabel(iso) {
+  if (!iso) return ''
+  const then = new Date(iso)
+  if (Number.isNaN(then.getTime())) return ''
+  const diffMs = Date.now() - then.getTime()
+  const diffDays = Math.floor(diffMs / 86400000)
+  if (diffDays <= 0) return 'today'
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffDays < 14) return 'last week'
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+  if (diffDays < 60) return 'last month'
+  return `${Math.floor(diffDays / 30)} months ago`
+}
+
 function mapYouthCard(youthRow, profileRow, questionnaire, sessions, insights, lastViewed) {
   const latestSession = (sessions || []).sort(
     (a, b) => new Date(b.updated_at || b.session_date) - new Date(a.updated_at || a.session_date),
@@ -55,14 +70,30 @@ function mapYouthCard(youthRow, profileRow, questionnaire, sessions, insights, l
       (!lastViewed || new Date(latestSession.updated_at || latestSession.created_at) > new Date(lastViewed)),
   )
 
+  const lastContactAt =
+    latestSession?.session_date || latestSession?.updated_at || latestSession?.created_at || null
+  const riskLevel = pickRiskLevel(sessions, insights)
+  const stateLine =
+    insights?.latest_change ||
+    (insights?.current_state?.length ? insights.current_state.slice(0, 2).join(', ') : '') ||
+    latestSession?.mood_check_in ||
+    (riskLevel === 'high'
+      ? 'Flagged for follow-up'
+      : !youthRow.onboarding_completed
+        ? 'Onboarding in progress'
+        : 'No recent change noted')
+
   return {
     id: youthRow.id,
     userId: profileRow?.id,
     name: youthRow.preferred_name || profileRow?.display_name || profileRow?.email?.split('@')[0] || 'Youth',
     email: profileRow?.email || '',
     onboardingCompleted: Boolean(youthRow.onboarding_completed),
-    riskLevel: pickRiskLevel(sessions, insights),
+    riskLevel,
     hasNew,
+    lastContactAt,
+    lastContactLabel: lastContactAt ? relativeTimeLabel(lastContactAt) : 'No contact yet',
+    stateLine,
     currentChallenges: questionnaire?.current_challenges || [],
     challengesLabel: youthRow.onboarding_completed
       ? (questionnaire?.current_challenges || []).join(', ') || 'Questionnaire completed'
@@ -286,12 +317,11 @@ async function buildPendingYouthCards(youthRows) {
 
 /** Minimal pending query — youth_profiles only, no joins, no staff filter. */
 export async function loadPendingYouth() {
-  console.log('Loading pending youth...')
-
   const { data, error } = await db().from('youth_profiles').select('*').is('assigned_staff_id', null)
 
-  console.log('Pending youth query response data:', data)
-  console.log('Pending youth query error:', error)
+  if (import.meta.env.DEV) {
+    console.debug('[staff] pending youth query', { count: data?.length ?? 0, error: error?.message })
+  }
 
   if (error) {
     return {
@@ -303,8 +333,6 @@ export async function loadPendingYouth() {
 
   const rawRows = data || []
   const pending = sortByRisk(await buildPendingYouthCards(rawRows))
-
-  console.log('Pending youth mapped cards:', pending)
 
   return {
     pending,
@@ -328,15 +356,17 @@ export async function getStaffDashboard() {
 
   const assigned = await buildYouthCards(staffProfile.id, assignedRows || [])
 
+  const highRiskCount = assigned.filter((youth) => youth.riskLevel === 'high').length
+
   return {
     staff: staffProfile,
     staffQuizCompleted: Boolean(staffQuestionnaire?.quiz_completed),
     assigned: sortByRisk(assigned),
     pending: pendingResult.pending,
-    pendingDebug: {
-      error: pendingResult.error?.message || pendingResult.error?.details || null,
-      rawCount: pendingResult.rawRows.length,
-      isEmpty: !pendingResult.error && pendingResult.rawRows.length === 0,
+    summary: {
+      caseloadCount: assigned.length,
+      highRiskCount,
+      pendingCount: pendingResult.pending.length,
     },
   }
 }

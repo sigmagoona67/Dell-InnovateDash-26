@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getCompatibilityScore } from '../../services/staffQuizAiService'
-import RiskBadge from './RiskBadge'
+import { Button, RiskBadge } from '../ui'
 
 function CompatibilityBadge({ score, loading, error }) {
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+      <div className="rounded-control border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] text-slate-500">
         Calculating compatibility…
       </div>
     )
@@ -14,8 +14,8 @@ function CompatibilityBadge({ score, loading, error }) {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        Compatibility unavailable: {error}
+      <div className="rounded-control border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] text-slate-500">
+        Compatibility unavailable right now.
       </div>
     )
   }
@@ -23,14 +23,19 @@ function CompatibilityBadge({ score, loading, error }) {
   if (score == null) return null
 
   const tone =
-    score >= 75 ? 'border-emerald-200 bg-emerald-50 text-emerald-800' :
-    score >= 50 ? 'border-sky-200 bg-sky-50 text-sky-800' :
-    'border-amber-200 bg-amber-50 text-amber-800'
+    score >= 75
+      ? 'border-success-100 bg-success-100 text-success-600'
+      : score >= 50
+        ? 'border-sky-100 bg-sky-50 text-sky-600'
+        : 'border-slate-200 bg-slate-50 text-slate-600'
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${tone}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide opacity-80">Compatibility with you</p>
-      <p className="mt-1 text-2xl font-bold">{score}<span className="text-base font-semibold">/100</span></p>
+    <div className={`rounded-control border px-4 py-3 ${tone}`}>
+      <p className="text-[12px] font-semibold uppercase tracking-wide opacity-80">Compatibility with you</p>
+      <p className="mt-1 font-display text-[22px] font-bold">
+        {score}
+        <span className="text-[15px] font-semibold">/100</span>
+      </p>
     </div>
   )
 }
@@ -95,12 +100,12 @@ export default function PendingYouthCard({
   const busy = assigning || localAssigning
 
   return (
-    <article className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+    <article className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-bold text-slate-800">{youth.name}</h3>
+          <h3 className="font-display text-[18px] font-semibold text-ink-800">{youth.name}</h3>
           <div className="mt-2">
-            <RiskBadge level={youth.riskLevel} />
+            <RiskBadge level={youth.riskLevel} showBar={youth.riskLevel === 'high'} />
           </div>
         </div>
         {staffQuizCompleted && (
@@ -112,22 +117,22 @@ export default function PendingYouthCard({
         )}
       </div>
 
-      <div className="mt-4 space-y-3 text-sm text-slate-600">
+      <div className="mt-4 space-y-3 text-[13px] text-slate-600">
         {youth.email && (
           <p>
-            <span className="font-medium text-slate-700">Email: </span>
+            <span className="font-bold text-slate-800">Email: </span>
             {youth.email}
           </p>
         )}
 
         <div>
-          <p className="font-medium text-slate-700">Interests</p>
+          <p className="font-bold text-slate-800">Interests</p>
           {youth.interests?.length ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {youth.interests.map((item) => (
                 <span
                   key={item}
-                  className="rounded-2xl bg-teal-50 px-3 py-1 text-xs font-medium text-teal-800 ring-1 ring-teal-100"
+                  className="rounded-pill bg-teal-50 px-3 py-1 text-[12px] font-medium text-teal-600"
                 >
                   {item}
                 </span>
@@ -139,29 +144,29 @@ export default function PendingYouthCard({
         </div>
 
         <div>
-          <p className="font-medium text-slate-700">Personality snapshot</p>
+          <p className="font-bold text-slate-800">Personality snapshot</p>
           <p className="mt-1 text-slate-600">{youth.personalitySummary || 'Not provided yet'}</p>
         </div>
 
         {compatibility.summary && (
-          <div className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Match insight</p>
-            <p className="mt-1 text-slate-700">{compatibility.summary}</p>
+          <div className="rounded-control border border-sky-100 bg-sky-50 px-4 py-3">
+            <p className="text-[12px] font-semibold uppercase tracking-wide text-sky-600">Match insight</p>
+            <p className="mt-1 text-slate-600">{compatibility.summary}</p>
           </div>
         )}
 
         <p>
-          <span className="font-medium text-slate-700">Current challenges: </span>
+          <span className="font-bold text-slate-800">Current challenges: </span>
           {youth.challengesLabel || 'Questionnaire not completed yet'}
         </p>
         <p>
-          <span className="font-medium text-slate-700">AI summary: </span>
+          <span className="font-bold text-slate-800">AI summary: </span>
           {youth.aiSummary || 'No AI summary yet.'}
         </p>
       </div>
 
       {!staffQuizCompleted && (
-        <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p className="mt-4 rounded-control border border-status-violet-100 bg-status-violet-100/50 px-4 py-3 text-[13px] text-status-violet-500">
           Complete your{' '}
           <Link to="/staff-dashboard/profile-quiz" className="font-semibold underline">
             staff profile quiz
@@ -171,20 +176,15 @@ export default function PendingYouthCard({
       )}
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={handleAssign}
-          className="rounded-2xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:opacity-60"
-        >
-          {busy ? 'Assigning…' : 'Assign to Me'}
-        </button>
+        <Button accent="sky" size="sm" loading={busy} onClick={handleAssign}>
+          Assign to me
+        </Button>
         {!hideViewDetails && (
           <Link
             to={`/staff-dashboard/youth/${youth.id}`}
-            className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-2.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+            className="inline-flex items-center rounded-control bg-sky-50 px-3.5 py-2 text-[13px] font-medium text-sky-600 transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500"
           >
-            View Details
+            View details
           </Link>
         )}
       </div>

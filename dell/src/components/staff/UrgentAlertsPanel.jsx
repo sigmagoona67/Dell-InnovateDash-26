@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import RiskBadge from './RiskBadge'
+import { AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Button, RiskBadge, StatusPill } from '../ui'
 
 export default function UrgentAlertsPanel({
   alerts,
@@ -12,106 +13,149 @@ export default function UrgentAlertsPanel({
   if (!alerts?.length) return null
 
   const openCount = alerts.filter((alert) => alert.status === 'open').length
+  const urgent = openCount > 0
+
+  // Open items first, ranked ahead of acknowledged ones.
+  const ranked = [...alerts].sort((a, b) => {
+    if (a.status === b.status) return 0
+    return a.status === 'open' ? -1 : 1
+  })
 
   return (
     <section
-      className="mb-10 rounded-3xl border border-rose-200 bg-gradient-to-br from-rose-50 to-orange-50 p-5 shadow-sm sm:p-6"
       aria-labelledby="urgent-alerts-heading"
+      aria-live="polite"
+      className={`mb-6 rounded-card border p-4 sm:p-6 ${
+        urgent
+          ? 'border-danger-100 bg-danger-100/40 shadow-float'
+          : 'border-slate-200 bg-slate-50 shadow-card'
+      }`}
     >
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Urgent</p>
-          <h2 id="urgent-alerts-heading" className="mt-1 text-xl font-bold text-slate-800">
-            High-Risk Youth Alerts
+          <p
+            className={`inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide ${
+              urgent ? 'text-danger-700' : 'text-slate-500'
+            }`}
+          >
+            {urgent ? (
+              <AlertCircle className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            )}
+            {urgent ? 'Urgent' : 'Follow-up pending'}
+          </p>
+          <h2
+            id="urgent-alerts-heading"
+            className="mt-1 font-display text-[22px] font-semibold text-ink-800"
+          >
+            High-risk youth alerts
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
-            {openCount
+          <p className="mt-1 text-[13px] text-slate-600">
+            {urgent
               ? `${openCount} youth need follow-up from after-hours AI support.`
-              : 'All flagged cases have been acknowledged — review and resolve when follow-up is complete.'}
+              : 'All flagged cases acknowledged — review and resolve when follow-up is complete.'}
           </p>
         </div>
-        <span className="rounded-full bg-rose-500 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+        <span
+          className={`rounded-pill px-3 py-1 text-[12px] font-bold uppercase tracking-wide ${
+            urgent ? 'bg-danger-600 text-white' : 'bg-slate-200 text-slate-600'
+          }`}
+        >
           {alerts.length} active
         </span>
       </div>
 
       <div className="space-y-3">
-        {alerts.map((alert) => (
-          <article
-            key={alert.id}
-            className="rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm backdrop-blur-sm"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-lg font-bold text-slate-800">{alert.youthName}</h3>
-                  <RiskBadge level={alert.riskLevel} />
-                  {alert.isPendingYouth && (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
-                      Unassigned
-                    </span>
-                  )}
-                  {alert.status === 'acknowledged' && (
-                    <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800 ring-1 ring-sky-200">
-                      Acknowledged
-                    </span>
+        {ranked.map((alert) => {
+          const isOpen = alert.status === 'open'
+          return (
+            <article
+              key={alert.id}
+              className={`relative overflow-hidden rounded-card border bg-white p-4 ${
+                isOpen ? 'border-danger-100 shadow-card' : 'border-slate-200 opacity-75'
+              }`}
+            >
+              {isOpen && (
+                <span
+                  aria-hidden="true"
+                  className="absolute left-0 top-0 h-full w-1 bg-danger-600"
+                />
+              )}
+              <div className={isOpen ? 'pl-2' : ''}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-display text-[18px] font-semibold text-ink-800">
+                        {alert.youthName}
+                      </h3>
+                      <RiskBadge level={alert.riskLevel} showBar={alert.riskLevel === 'high'} />
+                      {alert.isPendingYouth && <StatusPill status="unassigned">Unassigned</StatusPill>}
+                      {alert.status === 'acknowledged' && (
+                        <span className="inline-flex items-center gap-1 rounded-pill bg-sky-50 px-2.5 py-1 text-[12px] font-semibold text-sky-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          Acknowledged
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[12px] text-slate-500">Flagged {alert.createdAtLabel}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-2 text-[13px] text-slate-600">
+                  <p>
+                    <span className="font-bold text-slate-800">AI summary: </span>
+                    {alert.aiSummary}
+                  </p>
+                  {alert.triggerMessage && (
+                    <p>
+                      <span className="font-bold text-slate-800">Youth message: </span>
+                      &ldquo;{alert.triggerMessage}&rdquo;
+                    </p>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Flagged {alert.createdAtLabel}</p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {isOpen && (
+                    <Button
+                      accent="sky"
+                      size="sm"
+                      loading={busyId === alert.id}
+                      onClick={() => onAcknowledge(alert.id)}
+                    >
+                      Acknowledge
+                    </Button>
+                  )}
+                  <Button
+                    variant="secondary"
+                    accent="sky"
+                    size="sm"
+                    loading={busyId === alert.id}
+                    onClick={() => onResolve(alert.id)}
+                  >
+                    Mark resolved
+                  </Button>
+                  {alert.isPendingYouth && onAssign && (
+                    <Button
+                      accent="sky"
+                      size="sm"
+                      loading={assigningId === alert.youthId}
+                      onClick={() => onAssign(alert.youthId)}
+                    >
+                      Assign to me
+                    </Button>
+                  )}
+                  <Link
+                    to={`/staff-dashboard/youth/${alert.youthId}`}
+                    className="inline-flex items-center rounded-control bg-sky-50 px-3.5 py-2 text-[13px] font-medium text-sky-600 transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500"
+                  >
+                    View case
+                  </Link>
+                </div>
               </div>
-            </div>
-
-            <div className="mt-3 space-y-2 text-sm text-slate-600">
-              <p>
-                <span className="font-medium text-slate-700">AI summary: </span>
-                {alert.aiSummary}
-              </p>
-              {alert.triggerMessage && (
-                <p>
-                  <span className="font-medium text-slate-700">Youth message: </span>
-                  &ldquo;{alert.triggerMessage}&rdquo;
-                </p>
-              )}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {alert.status === 'open' && (
-                <button
-                  type="button"
-                  disabled={busyId === alert.id}
-                  onClick={() => onAcknowledge(alert.id)}
-                  className="rounded-2xl bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:opacity-60"
-                >
-                  {busyId === alert.id ? 'Updating…' : 'Acknowledge'}
-                </button>
-              )}
-              <button
-                type="button"
-                disabled={busyId === alert.id}
-                onClick={() => onResolve(alert.id)}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-              >
-                {busyId === alert.id ? 'Updating…' : 'Mark Resolved'}
-              </button>
-              {alert.isPendingYouth && onAssign && (
-                <button
-                  type="button"
-                  disabled={assigningId === alert.youthId}
-                  onClick={() => onAssign(alert.youthId)}
-                  className="rounded-2xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:opacity-60"
-                >
-                  {assigningId === alert.youthId ? 'Assigning…' : 'Assign to Me'}
-                </button>
-              )}
-              <Link
-                to={`/staff-dashboard/youth/${alert.youthId}`}
-                className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-2.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
-              >
-                View Case
-              </Link>
-            </div>
-          </article>
-        ))}
+            </article>
+          )
+        })}
       </div>
     </section>
   )

@@ -1,8 +1,11 @@
+import { UserRound } from 'lucide-react'
+import { StatusPill } from '../ui'
+
 function InfoRow({ label, value }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
-      <span className="text-sm font-medium text-slate-500">{label}</span>
-      <span className="text-sm font-semibold text-slate-800">{value}</span>
+    <div className="flex flex-col gap-1 border-b border-slate-200 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
+      <span className="text-[13px] font-medium text-slate-500">{label}</span>
+      <span className="text-[15px] font-bold text-slate-800">{value}</span>
     </div>
   )
 }
@@ -12,17 +15,24 @@ export default function AssignedWorkerPanel({ workerView }) {
     return (
       <div className="mx-auto max-w-xl">
         <header className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">Assigned Worker</h1>
-          <p className="mt-2 text-slate-600">We are finding the right person to support you.</p>
+          <h1 className="font-display text-[30px] font-bold leading-[1.1] text-ink-800">Assigned worker</h1>
+          <p className="mt-2 text-[15px] leading-[1.55] text-slate-600">
+            We&apos;re finding the right person to support you.
+          </p>
         </header>
 
-        <div className="rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-[0_8px_36px_-14px_rgba(45,90,110,0.12)]">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-50 text-3xl">
-            👩
+        <div className="rounded-card border border-slate-200 bg-white p-8 text-center shadow-card">
+          <div
+            aria-hidden="true"
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-card bg-teal-50 text-teal-600"
+          >
+            <UserRound className="h-7 w-7" />
           </div>
-          <p className="mb-2 text-sm font-medium text-sky-600">Status</p>
-          <p className="mb-6 text-xl font-bold text-slate-800">{workerView.status}</p>
-          <p className="text-sm leading-relaxed text-slate-600">{workerView.message}</p>
+          <p className="mb-2 text-[13px] font-medium text-slate-500">Status</p>
+          <div className="mb-6 flex justify-center">
+            <StatusPill status={workerView.status}>{workerView.status}</StatusPill>
+          </div>
+          <p className="text-[15px] leading-[1.55] text-slate-600">{workerView.message}</p>
         </div>
       </div>
     )
@@ -31,22 +41,27 @@ export default function AssignedWorkerPanel({ workerView }) {
   return (
     <div className="mx-auto max-w-xl">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Assigned Worker</h1>
-        <p className="mt-2 text-slate-600">Your trusted youth worker for ongoing support.</p>
+        <h1 className="font-display text-[30px] font-bold leading-[1.1] text-ink-800">Assigned worker</h1>
+        <p className="mt-2 text-[15px] leading-[1.55] text-slate-600">
+          Your trusted youth worker for ongoing support.
+        </p>
       </header>
 
-      <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-[0_8px_36px_-14px_rgba(45,90,110,0.12)]">
-        <p className="mb-1 text-sm font-medium text-teal-600">Assigned Youth Worker</p>
-        <h2 className="mb-6 text-2xl font-bold text-slate-800">{workerView.name}</h2>
+      <div className="rounded-card border border-slate-200 bg-white p-8 shadow-card">
+        <p className="mb-1 text-[13px] font-medium text-teal-600">Assigned youth worker</p>
+        <h2 className="mb-6 font-display text-[22px] font-semibold text-ink-800">{workerView.name}</h2>
 
-        <div className="rounded-2xl bg-slate-50/80 px-4">
-          <InfoRow label="Status" value={workerView.status} />
-          <InfoRow label="Working Hours" value={workerView.workingHours} />
-          <InfoRow label="Last Follow-up" value={workerView.lastFollowUp} />
-          <InfoRow label="Next Suggested Follow-up" value={workerView.nextFollowUp} />
+        <div className="rounded-card bg-slate-50 px-4">
+          <div className="flex items-center justify-between border-b border-slate-200 py-3">
+            <span className="text-[13px] font-medium text-slate-500">Status</span>
+            <StatusPill status={workerView.status}>{workerView.status}</StatusPill>
+          </div>
+          <InfoRow label="Working hours" value={workerView.workingHours} />
+          <InfoRow label="Last follow-up" value={workerView.lastFollowUp} />
+          <InfoRow label="Next suggested follow-up" value={workerView.nextFollowUp} />
         </div>
 
-        <p className="mt-6 rounded-2xl border border-teal-100 bg-teal-50/60 px-4 py-3 text-sm leading-relaxed text-teal-800">
+        <p className="mt-6 rounded-card border border-teal-100 bg-teal-50 px-4 py-3 text-[15px] leading-[1.55] text-slate-800">
           {workerView.message}
         </p>
       </div>

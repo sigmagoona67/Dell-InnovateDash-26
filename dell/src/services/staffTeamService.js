@@ -98,6 +98,52 @@ export async function getStaffDirectory() {
     return acc
   }, {})
 
+  // Risk mix per staff — drives the stacked risk bar on each card.
+  const riskMixByStaff = {}
+  const assignedYouthIds = assignedYouth.map((row) => row.id)
+  if (assignedYouthIds.length) {
+    const [sessions, insights] = await Promise.all([
+      db()
+        .from('ai_chat_sessions')
+        .select('youth_id, risk_level')
+        .in('youth_id', assignedYouthIds)
+        .then(({ data, error }) => {
+          if (error) {
+            if (isMissingTableError(error)) return []
+            throw error
+          }
+          return data || []
+        }),
+      db()
+        .from('ai_dynamic_insights')
+        .select('youth_id, risk_level')
+        .in('youth_id', assignedYouthIds)
+        .then(({ data, error }) => {
+          if (error) {
+            if (isMissingTableError(error)) return []
+            throw error
+          }
+          return data || []
+        }),
+    ])
+
+    const sessionsByYouth = sessions.reduce((acc, row) => {
+      ;(acc[row.youth_id] = acc[row.youth_id] || []).push(row)
+      return acc
+    }, {})
+    const insightByYouth = Object.fromEntries(insights.map((row) => [row.youth_id, row]))
+
+    for (const row of assignedYouth) {
+      const level = pickRiskLevel(sessionsByYouth[row.id], insightByYouth[row.id])
+      const mix = (riskMixByStaff[row.assigned_staff_id] =
+        riskMixByStaff[row.assigned_staff_id] || { high: 0, medium: 0, low: 0 })
+      mix[level] = (mix[level] || 0) + 1
+    }
+  }
+
+  // Capacity target: shared workload ceiling per worker for the meter.
+  const CASELOAD_TARGET = 8
+
   const staff = staffList
     .map((row) => ({
       id: row.id,
@@ -105,6 +151,8 @@ export async function getStaffDirectory() {
       email: row.email,
       isSelf: row.id === staffProfile.id,
       assignedYouthCount: countByStaff[row.id] || 0,
+      capacityTarget: CASELOAD_TARGET,
+      riskMix: riskMixByStaff[row.id] || { high: 0, medium: 0, low: 0 },
       quizCompleted: Boolean(questionnaireMap[row.id]?.quiz_completed),
     }))
     .sort((a, b) => {

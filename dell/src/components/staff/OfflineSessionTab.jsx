@@ -3,7 +3,7 @@ import { useStaffSession } from '../../context/StaffSessionContext'
 import { approveSession, createDraftSession, deleteDraftSession, updateDraftSession } from '../../services/offlineSessionService'
 import { upsertInsights } from '../../services/staffInsightsService'
 import { buildMockOfflineSummary, generateOfflineSummary } from '../../services/staffAiService'
-import RiskBadge from './RiskBadge'
+import { Button, RiskBadge } from '../ui'
 
 export default function OfflineSessionTab({ detail, onUpdated }) {
   const { context } = useStaffSession()
@@ -119,7 +119,7 @@ export default function OfflineSessionTab({ detail, onUpdated }) {
 
   if (!canManage) {
     return (
-      <div className="rounded-3xl border border-amber-100 bg-amber-50 p-6 text-sm text-amber-800">
+      <div className="rounded-card border border-status-violet-100 bg-status-violet-100/50 p-6 text-[13px] text-status-violet-500">
         Assign this youth to yourself before uploading offline counselling sessions.
       </div>
     )
@@ -127,9 +127,8 @@ export default function OfflineSessionTab({ detail, onUpdated }) {
 
   if (detail.staffTablesReady === false) {
     return (
-      <div className="rounded-3xl border border-amber-100 bg-amber-50 p-6 text-sm text-amber-800">
-        Offline session tables are not installed yet. Ask your admin to run{' '}
-        <code className="text-xs">20260610200000_carebridge-staff-schema.sql</code> in InsForge SQL Editor.
+      <div className="rounded-card border border-slate-200 bg-slate-50 p-6 text-[13px] text-slate-600">
+        Offline session updates are not available right now. Please check back later or contact your administrator.
       </div>
     )
   }
@@ -144,12 +143,18 @@ export default function OfflineSessionTab({ detail, onUpdated }) {
       </header>
 
       {errorMessage && (
-        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <p
+          role="alert"
+          className="rounded-card border border-danger-100 bg-danger-100/50 px-4 py-3 text-[13px] text-danger-700"
+        >
           {errorMessage}
         </p>
       )}
       {successMessage && (
-        <p className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+        <p
+          role="status"
+          className="rounded-card border border-sky-100 bg-sky-50 px-4 py-3 text-[13px] text-sky-600"
+        >
           {successMessage}
         </p>
       )}
@@ -193,14 +198,11 @@ export default function OfflineSessionTab({ detail, onUpdated }) {
             </label>
           )}
 
-          <button
-            type="button"
-            disabled={loading}
-            onClick={handleGenerate}
-            className="mt-4 rounded-2xl bg-sky-500 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-60"
-          >
-            {loading ? 'Generating…' : 'Generate AI Summary'}
-          </button>
+          <div className="mt-4">
+            <Button accent="sky" loading={loading} onClick={handleGenerate}>
+              Generate AI summary
+            </Button>
+          </div>
         </section>
       )}
 
@@ -250,28 +252,20 @@ export default function OfflineSessionTab({ detail, onUpdated }) {
           )}
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <button
-              type="button"
-              disabled={loading}
-              onClick={handleApprove}
-              className="rounded-2xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-60"
-            >
+            <Button accent="sky" size="sm" loading={loading} onClick={handleApprove}>
               Approve
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondary"
+              accent="sky"
+              size="sm"
               onClick={() => setEditing((v) => !v)}
-              className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-2.5 text-sm font-semibold text-sky-700"
             >
-              {editing ? 'Done Editing' : 'Edit'}
-            </button>
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600"
-            >
+              {editing ? 'Done editing' : 'Edit'}
+            </Button>
+            <Button variant="ghost" accent="sky" size="sm" onClick={handleCancel}>
               Cancel
-            </button>
+            </Button>
           </div>
         </section>
       )}

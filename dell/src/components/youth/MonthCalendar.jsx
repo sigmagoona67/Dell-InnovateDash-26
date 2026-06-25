@@ -13,9 +13,9 @@ export default function MonthCalendar({ year, month, markedDays, selectedDay, on
   for (let day = 1; day <= daysInMonth; day += 1) cells.push(day)
 
   return (
-    <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-center text-lg font-bold text-slate-800">{monthLabel}</h3>
-      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs font-medium text-slate-500">
+    <div className="rounded-card border border-slate-200 bg-white p-5 shadow-card">
+      <h3 className="mb-4 text-center font-display text-[18px] font-semibold text-ink-800">{monthLabel}</h3>
+      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[12px] font-medium text-slate-500">
         {WEEKDAYS.map((day) => (
           <div key={day}>{day}</div>
         ))}
@@ -36,10 +36,10 @@ export default function MonthCalendar({ year, month, markedDays, selectedDay, on
               disabled={!hasChat}
               onClick={() => hasChat && onSelectDay(day)}
               className={`
-                relative flex h-10 items-center justify-center rounded-xl text-sm font-medium transition
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400
-                ${hasChat ? 'cursor-pointer hover:bg-sky-50' : 'cursor-default text-slate-300'}
-                ${isSelected ? 'bg-sky-100 text-sky-700 ring-1 ring-sky-200' : 'text-slate-700'}
+                relative flex h-10 items-center justify-center rounded-control text-[15px] font-medium transition
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2
+                ${hasChat ? 'cursor-pointer hover:bg-sky-50' : 'cursor-default text-slate-400'}
+                ${isSelected ? 'bg-sky-100 text-sky-600 ring-1 ring-sky-200' : 'text-slate-800'}
               `}
             >
               {day}

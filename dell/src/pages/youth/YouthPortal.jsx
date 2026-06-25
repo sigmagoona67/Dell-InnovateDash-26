@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { CalendarDays, MessageCircleHeart, UserRound } from 'lucide-react'
 import AICompanion from '../../components/youth/AICompanion'
 import AssignedWorkerPanel from '../../components/youth/AssignedWorkerPanel'
 import ChatHistoryPanel from '../../components/youth/ChatHistoryPanel'
@@ -29,32 +30,44 @@ export default function YouthPortal() {
         youthName={context.displayName}
       />
 
-      <div className="relative z-10 flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-slate-100 bg-white/80 px-4 py-3 backdrop-blur-sm lg:hidden">
-          <p className="font-semibold text-slate-800">CareBridge AI</p>
-          <Link to="/" className="text-sm text-sky-600">
+      <div className="relative z-10 flex min-h-dvh flex-1 flex-col">
+        <header className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur-sm lg:hidden">
+          <p className="font-display text-[15px] font-semibold text-ink-800">CareBridge AI</p>
+          <Link
+            to="/"
+            className="rounded-control px-2 py-1 text-[13px] font-medium text-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+          >
             Home
           </Link>
         </header>
 
-        <div className="flex gap-2 overflow-x-auto border-b border-slate-100 bg-white px-4 py-2 lg:hidden">
+        <nav
+          aria-label="Youth portal navigation"
+          className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2 lg:hidden"
+        >
           {[
-            { id: 'companion', label: '🏠 Companion' },
-            { id: 'history', label: '📅 History' },
-            { id: 'worker', label: '👩 Worker' },
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActiveSection(item.id)}
-              className={`shrink-0 rounded-xl px-3 py-2 text-sm font-semibold ${activeSection === item.id ? 'bg-teal-50 text-teal-700' : 'text-slate-500'}`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+            { id: 'companion', icon: MessageCircleHeart, label: 'Companion' },
+            { id: 'history', icon: CalendarDays, label: 'History' },
+            { id: 'worker', icon: UserRound, label: 'Worker' },
+          ].map((item) => {
+            const Icon = item.icon
+            const isActive = activeSection === item.id
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveSection(item.id)}
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex shrink-0 items-center gap-1.5 rounded-control px-3 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${isActive ? 'bg-teal-50 text-teal-600' : 'text-slate-500'}`}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {activeSection === 'companion' && (
             <AICompanion youthId={context.youth.id} youthName={context.displayName} />
           )}

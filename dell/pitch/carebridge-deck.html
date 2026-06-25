@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>CareBridge AI — Pitch Deck</title>
+
+    <!-- Fonts: Sora (display) + Lato (body) — matches the product design system -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lato:wght@400;500;700&family=Sora:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- reveal.js core + base theme reset (we override heavily below) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css" />
+
+    <style>
+      :root {
+        /* ---- CareBridge AI design tokens (mirror of src/index.css @theme) ---- */
+        --ink-900: #0c343d;
+        --ink-800: #134f5c;
+        --slate-800: #243240;
+        --slate-600: #4a5d6b;
+        --slate-500: #6b7c89;
+        --slate-400: #9aa8b2;
+        --slate-200: #d8e0e5;
+        --slate-100: #eaeef1;
+        --slate-50: #f5f7f9;
+
+        --sky-600: #2f6f8a;
+        --sky-500: #3d8ba8;
+        --sky-100: #dceef7;
+        --sky-50: #f0f8fc;
+
+        --teal-600: #3a7d72;
+        --teal-500: #4a9d8f;
+        --teal-100: #d4f0eb;
+        --teal-50: #eef8f6;
+
+        --mist-200: #88ada5;
+
+        --danger-700: #8f2f3a;
+        --danger-600: #b4434f;
+        --danger-100: #f7e4e6;
+
+        --warning-500: #c98a3c;
+        --warning-100: #f6ecda;
+
+        --success-600: #3f8f6f;
+        --success-100: #dcefe6;
+
+        --violet-500: #6d6aa8;
+        --violet-100: #e8e7f2;
+
+        --radius-pill: 9999px;
+        --radius-control: 12px;
+        --radius-card: 20px;
+        --radius-panel: 24px;
+
+        --shadow-card: 0 4px 20px -8px rgba(18, 79, 92, 0.12);
+        --shadow-card-hover: 0 8px 30px -10px rgba(18, 79, 92, 0.18);
+        --shadow-float: 0 16px 48px -16px rgba(18, 79, 92, 0.22);
+
+        --r-main-font: 'Lato', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        --r-heading-font: 'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+
+      /* ---------- Reveal frame ---------- */
+      html, body { background: var(--slate-50); }
+      .reveal {
+        font-family: var(--r-main-font);
+        font-size: 30px;
+        color: var(--slate-800);
+        font-weight: 400;
+      }
+      .reveal .slides { text-align: left; }
+      .reveal .slides section {
+        height: 100%;
+        padding: 6% 7%;
+        box-sizing: border-box;
+      }
+
+      .reveal h1, .reveal h2, .reveal h3, .reveal h4 {
+        font-family: var(--r-heading-font);
+        color: var(--ink-800);
+        margin: 0 0 0.4em;
+        line-height: 1.12;
+        letter-spacing: -0.01em;
+        text-transform: none;
+      }
+      .reveal h1 { font-size: 1.75em; font-weight: 700; line-height: 1.08; }
+      .reveal h2 { font-size: 1.28em; font-weight: 700; line-height: 1.12; }
+      .reveal h3 { font-size: 0.82em; font-weight: 600; color: var(--ink-900); }
+      .reveal p { line-height: 1.55; }
+      .reveal a { color: var(--sky-600); }
+      .reveal ul { list-style: none; margin: 0; padding: 0; }
+
+      /* Eyebrow / kicker */
+      .kicker {
+        font-family: var(--r-heading-font);
+        font-weight: 600;
+        font-size: 0.46em;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--teal-600);
+        margin: 0 0 0.6em;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6em;
+      }
+      .kicker.staff { color: var(--sky-600); }
+      .kicker::before {
+        content: "";
+        width: 1.6em; height: 2px; border-radius: 2px;
+        background: currentColor; display: inline-block;
+      }
+
+      .lede { font-size: 0.62em; color: var(--slate-600); line-height: 1.55; max-width: 22em; }
+      .caption { font-size: 0.4em; font-weight: 500; color: var(--slate-500); }
+      .label {
+        font-family: var(--r-main-font);
+        font-size: 0.42em; font-weight: 700; letter-spacing: 0.04em;
+        text-transform: uppercase; color: var(--slate-500);
+      }
+
+      /* ---------- Dark / ink title slides ---------- */
+      section[data-background-color="#0c343d"] h1,
+      section[data-background-color="#0c343d"] h2,
+      section[data-background-color="#0c343d"] h3 { color: #ffffff; }
+      section[data-background-color="#0c343d"] .lede { color: #c6d6da; }
+      section[data-background-color="#0c343d"] .caption { color: #88ada5; }
+
+      /* ---------- Reusable layout ---------- */
+      .grid { display: grid; gap: 22px; }
+      .cols-2 { grid-template-columns: 1fr 1fr; }
+      .cols-3 { grid-template-columns: repeat(3, 1fr); }
+      .cols-4 { grid-template-columns: repeat(4, 1fr); }
+      .stack { display: flex; flex-direction: column; gap: 18px; }
+      .center-y { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+      .row { display: flex; gap: 14px; align-items: center; }
+
+      /* ---------- Cards ---------- */
+      .card {
+        background: #fff;
+        border: 1px solid var(--slate-200);
+        border-radius: var(--radius-card);
+        padding: 26px 24px;
+        box-shadow: var(--shadow-card);
+      }
+      .card h3 { margin-bottom: 0.35em; }
+      .card p { font-size: 0.5em; color: var(--slate-600); line-height: 1.5; margin: 0; }
+      .card.tint-teal { background: var(--teal-50); border-color: var(--teal-100); }
+      .card.tint-sky { background: var(--sky-50); border-color: var(--sky-100); }
+      .card .ico {
+        width: 44px; height: 44px; border-radius: var(--radius-control);
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 16px; font-size: 0.7em;
+      }
+      .ico.teal { background: var(--teal-100); color: var(--teal-600); }
+      .ico.sky { background: var(--sky-100); color: var(--sky-600); }
+
+      /* ---------- Stat figures ---------- */
+      .stat .fig {
+        font-family: var(--r-heading-font);
+        font-weight: 700; font-size: 1.55em; line-height: 1;
+        color: var(--ink-800); letter-spacing: -0.02em;
+      }
+      .stat .fig.alt { color: var(--teal-600); }
+      .stat .desc { font-size: 0.44em; color: var(--slate-600); line-height: 1.5; margin-top: 0.5em; }
+      .stat .src { font-size: 0.34em; color: var(--slate-500); margin-top: 0.7em; }
+
+      /* ---------- Chips ---------- */
+      .chip {
+        display: inline-flex; align-items: center; gap: 0.5em;
+        font-size: 0.4em; font-weight: 700; padding: 0.4em 0.85em;
+        border-radius: var(--radius-pill); letter-spacing: 0.02em;
+      }
+      .chip.high { background: var(--danger-600); color: #fff; }
+      .chip.med { background: var(--warning-100); color: var(--warning-500); }
+      .chip.low { background: var(--success-100); color: var(--success-600); }
+      .chip.op { background: var(--violet-100); color: var(--violet-500); }
+      .chip.dot::before { content:""; width:0.55em; height:0.55em; border-radius:50%; background: currentColor; }
+
+      /* ---------- Flow / pipeline ---------- */
+      .flow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; align-items: stretch; }
+      .flow .step {
+        position: relative; background: #fff; border: 1px solid var(--slate-200);
+        border-radius: var(--radius-card); padding: 18px 14px; box-shadow: var(--shadow-card);
+      }
+      .flow .step .n {
+        font-family: var(--r-heading-font); font-weight: 700; font-size: 0.46em;
+        color: var(--teal-500);
+      }
+      .flow .step.staff .n { color: var(--sky-500); }
+      .flow .step .t { font-family: var(--r-heading-font); font-weight: 600; font-size: 0.46em; color: var(--ink-800); margin: 8px 0 4px; }
+      .flow .step .d { font-size: 0.34em; color: var(--slate-600); line-height: 1.45; }
+      .flow .step .top { height: 4px; border-radius: 4px; margin-bottom: 14px; width: 36px; background: var(--teal-500); }
+      .flow .step.staff .top { background: var(--sky-500); }
+
+      /* ---------- Feature lists ---------- */
+      .feat { display: flex; gap: 12px; align-items: flex-start; }
+      .feat .mk {
+        flex: 0 0 auto; width: 1.5em; height: 1.5em; border-radius: 7px; margin-top: 0.1em;
+        display: flex; align-items: center; justify-content: center; font-size: 0.5em; font-weight: 700;
+      }
+      .feat .mk.teal { background: var(--teal-100); color: var(--teal-600); }
+      .feat .mk.sky { background: var(--sky-100); color: var(--sky-600); }
+      .feat .tx { font-size: 0.5em; line-height: 1.45; }
+      .feat .tx b { font-family: var(--r-heading-font); font-weight: 600; color: var(--ink-800); display: block; font-size: 1em; }
+      .feat .tx span { color: var(--slate-600); }
+
+      /* portal header band */
+      .portal-hd { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+      .portal-hd .badge {
+        font-family: var(--r-heading-font); font-weight: 700; font-size: 0.42em;
+        padding: 0.45em 1em; border-radius: var(--radius-pill);
+      }
+      .portal-hd .badge.teal { background: var(--teal-100); color: var(--teal-600); }
+      .portal-hd .badge.sky { background: var(--sky-100); color: var(--sky-600); }
+      .portal-hd .sub { font-size: 0.42em; color: var(--slate-500); }
+
+      /* logo lockup */
+      .logo { display: inline-flex; align-items: center; gap: 0.5em; font-family: var(--r-heading-font); font-weight: 700; }
+      .logo .mark {
+        width: 1.5em; height: 1.5em; border-radius: 9px;
+        background: linear-gradient(135deg, var(--teal-500), var(--sky-500));
+        display: inline-flex; align-items: center; justify-content: center;
+      }
+      .logo .mark svg { width: 60%; height: 60%; }
+
+      /* divider rule */
+      .rule { height: 1px; background: var(--slate-200); border: 0; margin: 0; }
+
+      /* mock chat bubble (vision/product slides) */
+      .bubble {
+        font-size: 0.42em; line-height: 1.5; padding: 0.85em 1.1em; border-radius: 16px;
+        max-width: 80%; box-shadow: var(--shadow-card);
+      }
+      .bubble.ai { background: var(--teal-50); border: 1px solid var(--teal-100); color: var(--slate-800); border-bottom-left-radius: 6px; }
+      .bubble.you { background: var(--sky-600); color: #fff; align-self: flex-end; border-bottom-right-radius: 6px; }
+
+      /* footer credit on each slide */
+      .reveal .slide-foot {
+        position: absolute; bottom: 22px; left: 7%; right: 7%;
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 0.32em; font-weight: 500; color: var(--slate-400);
+        font-family: var(--r-main-font);
+      }
+      section[data-background-color="#0c343d"] .slide-foot { color: rgba(255,255,255,0.45); }
+
+      /* progress + controls colors */
+      .reveal .progress { color: var(--teal-500); height: 4px; }
+      .reveal .controls { color: var(--sky-500); }
+      .reveal .slide-number { background: transparent; color: var(--slate-400); font-family: var(--r-main-font); }
+
+      /* reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        .reveal .slides section { transition: none !important; }
+      }
+
+      /* big eyebrow number for impact slide */
+      .pillrow { display:flex; flex-wrap:wrap; gap:10px; }
+      .softpill {
+        font-size: 0.42em; font-weight: 700; color: var(--ink-800);
+        background:#fff; border:1px solid var(--slate-200); border-radius: var(--radius-pill);
+        padding: 0.5em 1em; box-shadow: var(--shadow-card);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+
+        <!-- ============ 1 · TITLE ============ -->
+        <section data-background-color="#0c343d">
+          <div class="center-y">
+            <div class="logo" style="font-size:0.66em; color:#fff; margin-bottom:1.4em;">
+              <span class="mark">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.35-9.33-8.2C1.2 10.2 2.1 6.6 5.3 5.8 7.3 5.3 9 6.3 12 9c3-2.7 4.7-3.7 6.7-3.2 3.2.8 4.1 4.4 2.63 7-2.33 3.85-9.33 8.2-9.33 8.2Z" fill="#fff"/></svg>
+              </span>
+              CareBridge AI
+            </div>
+            <h1 style="font-size:2.05em; max-width:13em;">AI Supports Overnight,<br/>Humans Lead the Care.</h1>
+            <p class="lede" style="font-size:0.66em; max-width:24em; margin-top:0.3em;">
+              A dual-portal platform that gives youth empathetic after-hours support and gives youth workers
+              the summaries, risk alerts, and caseload insight to follow up the next day.
+            </p>
+            <div class="row" style="margin-top:2em; gap:10px;">
+              <span class="chip" style="background:rgba(74,157,143,0.18); color:#86d6c6;">Youth Portal</span>
+              <span class="chip" style="background:rgba(61,139,168,0.18); color:#8fc9e0;">Staff Portal</span>
+              <span class="caption" style="margin-left:0.4em;">Built for Singapore Children's Society</span>
+            </div>
+          </div>
+          <div class="slide-foot"><span>CareBridge AI</span><span>Pitch · 2026</span></div>
+        </section>
+
+        <!-- ============ 2 · PROBLEM STATEMENT (HMW) ============ -->
+        <section data-background-color="#f5f7f9">
+          <div class="center-y">
+            <span class="kicker">Problem Statement</span>
+            <h2 style="font-size:1.45em; max-width:16.5em; line-height:1.22; color:var(--ink-900);">
+              How might we use technology to help youth workers
+              <span style="color:var(--sky-600);">efficiently summarize, manage, and guide</span>
+              conversations with multiple youths — while giving youths a
+              <span style="color:var(--teal-600);">seamless, empathetic after-hours experience</span> —
+              so workers can deliver timely, personalized follow-ups?
+            </h2>
+          </div>
+          <div class="slide-foot"><span>CareBridge AI</span><span>02</span></div>
+        </section>
+
+        <!-- ============ 3 · THE PROBLEM ============ -->
+        <section data-background-color="#ffffff">
+          <span class="kicker">The Problem</span>
+          <h2>Care happens during the day. Distress happens at night.</h2>
+          <div class="grid cols-3" style="margin-top:1.2em;">
+            <div class="card">
+              <div class="ico sky">
+                <svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.2"/><path d="M15 20a5 5 0 0 1 6-2"/></svg>
+              </div>
+              <h3>Workers juggle many youths</h3>
+              <p>A single youth worker holds a large caseload. Keeping each story, history, and next step in mind is slow and easy to lose.</p>
+            </div>
+            <div class="card">
+              <div class="ico sky">
+                <svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h7M4 12h12M4 18h6"/><circle cx="18" cy="7" r="1.6"/><circle cx="20" cy="14" r="1.6"/></svg>
+              </div>
+              <h3>Signals are scattered</h3>
+              <p>Notes, chats, and check-ins live in different places. Important warning signs sit unread between sessions.</p>
+            </div>
+            <div class="card tint-teal">
+              <div class="ico teal">
+                <svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+              </div>
+              <h3>After-hours distress is seen too late</h3>
+              <p>Youth reach out when they are alone at night — but help only arrives the next working day, after the moment has passed.</p>
+            </div>
+          </div>
+          <p class="lede" style="margin-top:1.3em; font-size:0.5em; max-width:38em;">
+            The result: youth feel unheard in their hardest hours, and workers walk into each morning without a clear, prioritized picture of who needs them most.
+          </p>
+          <div class="slide-foot"><span>CareBridge AI</span><span>03</span></div>
+        </section>
+
+        <!-- ============ 4 · WHY IT MATTERS (EVIDENCE) ============ -->
+        <section data-background-color="#0c343d">
+          <span class="kicker">Why It Matters</span>
+          <h2 style="color:#fff;">The need among Singapore youth is real — and largely silent.</h2>
+          <div class="grid cols-4" style="margin-top:1.1em;">
+            <div class="stat">
+              <div class="fig" style="color:#86d6c6;">30.6%</div>
+              <div class="desc" style="color:#c6d6da;">of SG youth aged 15–35 have severe depression, anxiety, or stress.</div>
+              <div class="src" style="color:#88ada5;">IMH National Youth Mental Health Study, 2024</div>
+            </div>
+            <div class="stat">
+              <div class="fig" style="color:#8fc9e0;">31.8%</div>
+              <div class="desc" style="color:#c6d6da;">of those in distress actually sought help; <b style="color:#fff;">84.8%</b> have no diagnosis.</div>
+              <div class="src" style="color:#88ada5;">CARE SG × Milieu Insight, 2024</div>
+            </div>
+            <div class="stat">
+              <div class="fig" style="color:#86d6c6;">49%</div>
+              <div class="desc" style="color:#c6d6da;">stay silent — afraid they would burden the people around them.</div>
+              <div class="src" style="color:#88ada5;">CARE SG × Milieu Insight, 2024</div>
+            </div>
+            <div class="stat">
+              <div class="fig" style="color:#e6a3ab;">1 in 4</div>
+              <div class="desc" style="color:#c6d6da;">SG youth have self-harmed at least once. Distress peaks at night.</div>
+              <div class="src" style="color:#88ada5;">National study findings, 2024</div>
+            </div>
+          </div>
+          <p class="lede" style="color:#c6d6da; margin-top:1.4em; font-size:0.5em; max-width:40em;">
+            Most youth in distress never raise their hand — and when they do, it is often after hours, when no one is there to answer.
+          </p>
+          <div class="slide-foot"><span>CareBridge AI</span><span>04</span></div>
+        </section>
+
+        <!-- ============ 5 · VISION ============ -->
+        <section data-background-color="#134f5c">
+          <div class="center-y">
+            <span class="kicker" style="color:#86d6c6;">Our Vision</span>
+            <h1 style="color:#fff; font-size:2.2em; max-width:13em;">AI Supports Overnight,<br/>Humans Lead the Care.</h1>
+            <p class="lede" style="color:#d4e6ea; font-size:0.62em; max-width:26em; margin-top:0.4em;">
+              AI is never the therapist. It is the bridge that holds a youth's night with calm presence —
+              then hands a clear, human-ready summary to the worker who leads the real care.
+            </p>
+            <div class="grid cols-2" style="margin-top:1.6em; max-width:24em; gap:14px;">
+              <div class="stack" style="gap:10px;">
+                <span class="label" style="color:#86d6c6;">Overnight · AI</span>
+                <div class="bubble ai" style="font-size:0.5em; max-width:100%;">"I'm here with you. Want to tell me what tonight feels like?"</div>
+              </div>
+              <div class="stack" style="gap:10px;">
+                <span class="label" style="color:#8fc9e0;">Next day · Human</span>
+                <div class="bubble" style="font-size:0.5em; max-width:100%; background:#fff; color:var(--slate-800); border:1px solid var(--slate-200);">Worker follows up with full context, in person.</div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-foot"><span>CareBridge AI</span><span>05</span></div>
+        </section>
+
+        <!-- ============ 6 · WHAT IS CAREBRIDGE (DUAL PORTAL) ============ -->
+        <section data-background-color="#ffffff">
+          <span class="kicker">What Is CareBridge AI</span>
+          <h2>One platform, two portals — a bridge between them.</h2>
+          <div class="grid cols-2" style="margin-top:1.1em; gap:26px;">
+            <div class="card tint-teal" style="padding:30px 28px;">
+              <div class="portal-hd">
+                <span class="badge teal">Youth Portal</span>
+                <span class="sub">warm · companion · after-hours</span>
+              </div>
+              <p style="font-size:0.52em; color:var(--slate-600); line-height:1.5;">
+                A calm, low-arousal space where youth do a quick mood check-in and chat with an empathetic AI companion when no one else is awake — designed to feel safe, not clinical.
+              </p>
+            </div>
+            <div class="card tint-sky" style="padding:30px 28px;">
+              <div class="portal-hd">
+                <span class="badge sky">Staff Portal</span>
+                <span class="sub">operational · triage · daytime</span>
+              </div>
+              <p style="font-size:0.52em; color:var(--slate-600); line-height:1.5;">
+                A caseload dashboard where youth workers get AI-generated summaries, risk alerts, case insights, and compatibility-based matching — so the next day's follow-ups are timely and personalized.
+              </p>
+            </div>
+          </div>
+          <div class="card" style="margin-top:22px; padding:18px 24px; display:flex; align-items:center; gap:16px; background:var(--slate-50);">
+            <span class="label" style="color:var(--ink-800);">The bridge</span>
+            <hr class="rule" style="flex:1;"/>
+            <p style="font-size:0.46em; color:var(--slate-600); margin:0;">AI summarizes and screens the overnight conversation, then routes it to the right worker for human follow-up.</p>
+          </div>
+          <div class="slide-foot"><span>CareBridge AI</span><span>06</span></div>
+        </section>
+
+        <!-- ============ 7 · EXPERIENCE FLOW ============ -->
+        <section data-background-color="#f5f7f9">
+          <span class="kicker">Experience Flow</span>
+          <h2>From first questionnaire to a personal human follow-up.</h2>
+          <div class="flow" style="margin-top:1.3em;">
+            <div class="step"><div class="top"></div><div class="n">01</div><div class="t">Onboarding questionnaire</div><div class="d">Youth & staff each complete a short profile.</div></div>
+            <div class="step"><div class="top"></div><div class="n">02</div><div class="t">Compatibility matching</div><div class="d">Youth paired with a well-fitting worker.</div></div>
+            <div class="step"><div class="top"></div><div class="n">03</div><div class="t">Check-in & chat</div><div class="d">After-hours mood check + AI companion chat.</div></div>
+            <div class="step staff"><div class="top"></div><div class="n">04</div><div class="t">AI analysis</div><div class="d">Summary + risk screening generated.</div></div>
+            <div class="step staff"><div class="top"></div><div class="n">05</div><div class="t">Staff triage</div><div class="d">Caseload dashboard prioritizes who needs attention.</div></div>
+            <div class="step staff"><div class="top"></div><div class="n">06</div><div class="t">Human follow-up</div><div class="d">Worker follows up, personalized & timely.</div></div>
+          </div>
+          <div class="row" style="margin-top:1.5em; gap:20px;">
+            <span class="chip dot" style="background:var(--teal-100); color:var(--teal-600);">Youth-facing</span>
+            <span class="chip dot" style="background:var(--sky-100); color:var(--sky-600);">Staff-facing</span>
+            <span class="caption">Teal = youth & companion · Sky = staff & operational</span>
+          </div>
+          <div class="slide-foot"><span>CareBridge AI</span><span>07</span></div>
+        </section>
+
+        <!-- ============ 8 · WHO USES IT ============ -->
+        <section data-background-color="#ffffff">
+          <span class="kicker">Who Uses It</span>
+          <h2>Two audiences, two experiences.</h2>
+          <div class="grid cols-2" style="margin-top:1.0em; gap:26px;">
+            <div class="card" style="padding:26px;">
+              <div class="portal-hd"><span class="badge teal">Youth Portal</span></div>
+              <div class="stack" style="gap:14px;">
+                <div class="feat"><span class="mk teal">✓</span><span class="tx"><b>Nightly mood check-in</b><span>A few gentle taps to capture how tonight feels.</span></span></div>
+                <div class="feat"><span class="mk teal">✓</span><span class="tx"><b>Empathetic AI chat</b><span>A warm companion to talk to when alone after hours.</span></span></div>
+                <div class="feat"><span class="mk teal">✓</span><span class="tx"><b>Matched to a trusted worker</b><span>Paired with a youth worker who fits them.</span></span></div>
+                <div class="feat"><span class="mk teal">✓</span><span class="tx"><b>Calm, private, low-pressure</b><span>No judgment, no clinical feel — safe by design.</span></span></div>
+              </div>
+            </div>
+            <div class="card" style="padding:26px;">
+              <div class="portal-hd"><span class="badge sky">Staff Portal</span></div>
+              <div class="stack" style="gap:14px;">
+                <div class="feat"><span class="mk sky">✓</span><span class="tx"><b>Caseload dashboard</b><span>Every matched youth in one prioritized view.</span></span></div>
+                <div class="feat"><span class="mk sky">✓</span><span class="tx"><b>AI conversation summaries</b><span>Overnight chats distilled into a quick read.</span></span></div>
+                <div class="feat"><span class="mk sky">✓</span><span class="tx"><b>Risk alerts &amp; case insights</b><span>High-risk signals surfaced for fast triage.</span></span></div>
+                <div class="feat"><span class="mk sky">✓</span><span class="tx"><b>Compatibility-based matching</b><span>Pair youth and workers on fit, not just availability.</span></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="slide-foot"><span>CareBridge AI</span><span>08</span></div>
+        </section>
+
+        <!-- ============ 9 · PROTOTYPE FEATURES ============ -->
+        <section data-background-color="#f5f7f9">
+          <span class="kicker">Prototype Features</span>
+          <h2>What's built and demo-ready.</h2>
+          <div class="grid cols-2" style="margin-top:1.0em; gap:20px;">
+            <div class="card">
+              <div class="ico sky">
+                <svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M11 8h3a3 3 0 0 1 3 3v2M13 16h-3a3 3 0 0 1-3-3v-2"/></svg>
+              </div>
+              <h3>Smart Matching</h3>
+              <p>Compatibility scoring from the onboarding questionnaires pairs each youth with a well-fitting worker.</p>
+            </div>
+            <div class="card tint-teal">
+              <div class="ico teal">
+                <svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v10H8l-4 4V5Z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>
+              </div>
+              <h3>After-hours AI chat + mood</h3>
+              <p>A warm, low-arousal mood check-in and empathetic chat companion that holds the youth's night with calm presence.</p>
+            </div>
+            <div class="card">
+              <div class="ico sky">
+                <svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h14v16l-3-2-2 2-2-2-2 2-3-2V4Z"/><path d="M9 9h6M9 13h4"/></svg>
+              </div>
+              <h3>AI summaries &amp; risk alerts</h3>
+              <p>Overnight conversations are summarized and screened, flagging High / Medium / Low risk by weight, shape, and label — never color alone.</p>
+              <div class="row" style="margin-top:14px; gap:8px;">
+                <span class="chip high">High</span>
+                <span class="chip med">Medium</span>
+                <span class="chip low">Low</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="ico sky">
+                <svg viewBox="0 0 24 24" width="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M4 12h16M4 19h10"/><circle cx="20" cy="19" r="1.5"/></svg>
+              </div>
+              <h3>Caseload triage</h3>
+              <p>The dashboard ranks the caseload so workers see who needs attention first and follow up the same morning.</p>
+            </div>
+          </div>
+          <div class="slide-foot"><span>CareBridge AI</span><span>09</span></div>
+        </section>
+
+        <!-- ============ 10 · RISK / RESPONSIBLE DESIGN ============ -->
+        <section data-background-color="#ffffff">
+          <span class="kicker staff">How Risk Is Read</span>
+          <h2>Calm, not alarming — clarity without panic.</h2>
+          <div class="grid cols-3" style="margin-top:1.1em;">
+            <div class="card" style="border-left:5px solid var(--danger-600);">
+              <span class="chip high" style="margin-bottom:14px;">High risk</span>
+              <p>Solid danger fill + accent bar. Surfaced at the top of the caseload for immediate human attention.</p>
+            </div>
+            <div class="card">
+              <div class="row" style="margin-bottom:14px;"><span class="chip med">Medium</span><span class="chip low">Low</span></div>
+              <p>Soft chips. Read by weight, shape, and label — distinct from operational status, never by color alone.</p>
+            </div>
+            <div class="card">
+              <span class="chip op dot" style="margin-bottom:14px;">Operational status</span>
+              <p>Unassigned · Onboarding · Offline · Incomplete use a separate violet family — so "medium risk" never collides with "offline".</p>
+            </div>
+          </div>
+          <p class="lede" style="margin-top:1.3em; font-size:0.5em; max-width:40em;">
+            Every signal stays low-arousal and trustworthy. The product reassures vulnerable youth and keeps workers calm and decisive.
+          </p>
+          <div class="slide-foot"><span>CareBridge AI</span><span>10</span></div>
+        </section>
+
+        <!-- ============ 11 · IMPACT & FUTURE ============ -->
+        <section data-background-color="#0c343d">
+          <span class="kicker">Impact &amp; Future Direction</span>
+          <h2 style="color:#fff;">Closing the gap between a youth's hardest hour and human care.</h2>
+          <div class="grid cols-3" style="margin-top:1.1em;">
+            <div class="card" style="background:#11414b; border-color:#1d5560;">
+              <h3 style="color:#86d6c6;">For youth</h3>
+              <p style="color:#c6d6da;">Someone to turn to after hours — lowering the barrier for the silent majority who fear they'd burden others.</p>
+            </div>
+            <div class="card" style="background:#11414b; border-color:#1d5560;">
+              <h3 style="color:#8fc9e0;">For workers</h3>
+              <p style="color:#c6d6da;">Less time reconstructing context, more time on timely, personalized follow-up across a large caseload.</p>
+            </div>
+            <div class="card" style="background:#11414b; border-color:#1d5560;">
+              <h3 style="color:#fff;">For the organisation</h3>
+              <p style="color:#c6d6da;">A scalable bridge model that extends a youth worker's reach without replacing the human relationship.</p>
+            </div>
+          </div>
+          <div style="margin-top:1.4em;">
+            <span class="label" style="color:#86d6c6;">Where we go next</span>
+            <div class="pillrow" style="margin-top:0.8em;">
+              <span class="softpill" style="background:#11414b; color:#fff; border-color:#1d5560;">Deeper matching signals</span>
+              <span class="softpill" style="background:#11414b; color:#fff; border-color:#1d5560;">Trend insights over time</span>
+              <span class="softpill" style="background:#11414b; color:#fff; border-color:#1d5560;">Worker-in-the-loop escalation</span>
+              <span class="softpill" style="background:#11414b; color:#fff; border-color:#1d5560;">Outcome tracking with SCS</span>
+            </div>
+          </div>
+          <div class="slide-foot"><span>CareBridge AI</span><span>11</span></div>
+        </section>
+
+        <!-- ============ 12 · THANK YOU / CONTACT ============ -->
+        <section data-background-color="#134f5c">
+          <div class="center-y">
+            <div class="logo" style="font-size:0.6em; color:#fff; margin-bottom:1.2em;">
+              <span class="mark">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.35-9.33-8.2C1.2 10.2 2.1 6.6 5.3 5.8 7.3 5.3 9 6.3 12 9c3-2.7 4.7-3.7 6.7-3.2 3.2.8 4.1 4.4 2.63 7-2.33 3.85-9.33 8.2-9.33 8.2Z" fill="#fff"/></svg>
+              </span>
+              CareBridge AI
+            </div>
+            <h1 style="color:#fff; font-size:1.9em;">Thank you.</h1>
+            <p class="lede" style="color:#d4e6ea; font-size:0.62em; max-width:24em;">
+              AI supports overnight. Humans lead the care. We'd love to bring this bridge to the youth and workers of Singapore Children's Society.
+            </p>
+            <div class="row" style="margin-top:1.8em; gap:14px; flex-wrap:wrap;">
+              <span class="softpill" style="background:rgba(255,255,255,0.08); color:#fff; border-color:rgba(255,255,255,0.18);">Team CareBridge AI</span>
+              <span class="softpill" style="background:rgba(255,255,255,0.08); color:#fff; border-color:rgba(255,255,255,0.18);">hello@carebridge.ai</span>
+              <span class="softpill" style="background:rgba(255,255,255,0.08); color:#fff; border-color:rgba(255,255,255,0.18);">Dell InnovateDash 2026</span>
+            </div>
+            <p class="caption" style="margin-top:1.6em; color:#88ada5;">Built for Singapore Children's Society · Group 1</p>
+          </div>
+          <div class="slide-foot"><span>CareBridge AI</span><span>12</span></div>
+        </section>
+
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        slideNumber: false,
+        controls: true,
+        progress: true,
+        center: false,
+        transition: 'slide',
+        transitionSpeed: 'default',
+        width: 1280,
+        height: 720,
+        margin: 0.0,
+        minScale: 0.2,
+        maxScale: 1.6,
+      });
+    </script>
+  </body>
+</html>

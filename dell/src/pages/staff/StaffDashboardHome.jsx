@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import AssignedYouthCard from '../../components/staff/AssignedYouthCard'
+import CaseloadSummary from '../../components/staff/CaseloadSummary'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
+import StaffNav from '../../components/staff/StaffNav'
 import UrgentAlertsPanel from '../../components/staff/UrgentAlertsPanel'
+import { Card, Skeleton } from '../../components/ui'
 import { useStaffSession } from '../../context/StaffSessionContext'
 import {
   acknowledgeRiskAlert,
@@ -24,19 +26,11 @@ export default function StaffDashboardHome() {
   const loadDashboard = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
     setErrorMessage('')
-    console.log('StaffDashboard: loading dashboard...')
     try {
       const [data, openAlerts] = await Promise.all([getStaffDashboard(), getOpenRiskAlerts()])
-      console.log('StaffDashboard: dashboard loaded', {
-        pendingCount: data.pending?.length ?? 0,
-        pendingDebug: data.pendingDebug,
-        pending: data.pending,
-        alertCount: openAlerts.length,
-      })
       setDashboard(data)
       setAlerts(openAlerts)
     } catch (error) {
-      console.log('StaffDashboard: dashboard error:', error)
       setErrorMessage(error.message || 'Unable to load dashboard.')
     } finally {
       if (!silent) setLoading(false)
@@ -94,56 +88,70 @@ export default function StaffDashboardHome() {
   }
 
   const staffName = dashboard?.staff?.display_name || context?.staffProfile?.display_name || 'Staff'
+  const openAlertsCount = alerts.filter((alert) => alert.status === 'open').length
+  const awaitingFollowUp = alerts.filter((alert) => alert.status === 'acknowledged').length
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-white">
+    <div className="relative min-h-dvh overflow-hidden bg-slate-50">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 top-0 h-96 w-96 rounded-full bg-sky-50 blur-3xl" />
         <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-10">
-        <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-sky-600">Staff Portal</p>
-            <h1 className="mt-1 text-3xl font-bold text-slate-800">Staff Dashboard</h1>
-            <p className="mt-2 text-slate-600">Welcome back, {staffName}. Manage assigned youth and review AI insights.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              to="/staff-dashboard/team"
-              className="rounded-2xl border border-teal-100 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-100"
-            >
-              Care team
-            </Link>
-            <Link
-              to="/staff-dashboard/profile-quiz"
-              className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
-            >
-              {dashboard?.staffQuizCompleted ? 'Edit profile quiz' : 'Complete profile quiz'}
-            </Link>
-            <Link to="/" className="text-sm font-medium text-sky-600 hover:text-sky-700">
-              Portal selection
-            </Link>
-          </div>
+      <StaffNav />
+
+      <div className="relative z-10 mx-auto max-w-6xl px-6 py-8 lg:px-8 lg:py-10">
+        <header className="mb-6">
+          <p className="text-[12px] font-medium uppercase tracking-wide text-sky-600">Staff Portal</p>
+          <h1 className="mt-1 font-display text-[30px] font-bold leading-[1.1] text-ink-800">
+            Staff Dashboard
+          </h1>
+          <p className="mt-2 text-[15px] text-slate-600">
+            Welcome back, {staffName}. Your caseload at a glance.
+          </p>
         </header>
 
         {errorMessage && (
-          <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <p
+            role="alert"
+            className="mb-4 rounded-card border border-danger-100 bg-danger-100/50 px-4 py-3 text-[13px] text-danger-700"
+          >
             {errorMessage}
           </p>
         )}
 
         {notice && (
-          <p className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+          <p
+            role="status"
+            className="mb-4 rounded-card border border-sky-100 bg-sky-50 px-4 py-3 text-[13px] text-sky-600"
+          >
             {notice}
           </p>
         )}
 
         {loading ? (
-          <p className="text-slate-500">Loading dashboard…</p>
+          <div aria-live="polite" aria-busy="true">
+            <span className="sr-only">Loading dashboard…</span>
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} variant="block" className="h-20" />
+              ))}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} variant="block" />
+              ))}
+            </div>
+          </div>
         ) : (
           <>
+            <CaseloadSummary
+              caseloadCount={dashboard?.summary?.caseloadCount ?? 0}
+              highRiskCount={dashboard?.summary?.highRiskCount ?? 0}
+              openAlerts={openAlertsCount}
+              awaitingFollowUp={awaitingFollowUp}
+            />
+
             <UrgentAlertsPanel
               alerts={alerts}
               onAcknowledge={handleAcknowledge}
@@ -154,7 +162,7 @@ export default function StaffDashboardHome() {
             />
 
             <section className="mb-10">
-              <h2 className="mb-4 text-xl font-bold text-slate-800">Assigned Youth</h2>
+              <h2 className="mb-4 font-display text-[22px] font-semibold text-ink-800">Assigned youth</h2>
               {dashboard?.assigned?.length ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {dashboard.assigned.map((youth) => (
@@ -162,29 +170,19 @@ export default function StaffDashboardHome() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-sm">
-                  <p className="text-slate-600">No assigned youth yet.</p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Choose a youth from Pending Assignment below and click Assign to Me.
+                <Card padding="lg" className="text-center">
+                  <p className="text-[15px] text-slate-600">No youth assigned to you yet.</p>
+                  <p className="mt-2 text-[13px] text-slate-500">
+                    Choose a youth from Awaiting assignment below and assign them to your caseload.
                   </p>
-                </div>
+                </Card>
               )}
             </section>
 
             <section>
-              <h2 className="mb-4 text-xl font-bold text-slate-800">Pending Assignment</h2>
-
-              {dashboard?.pendingDebug?.error && (
-                <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  Pending youth query error: {dashboard.pendingDebug.error}
-                </p>
-              )}
-
-              {dashboard?.pendingDebug?.isEmpty && !dashboard?.pendingDebug?.error && (
-                <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  No pending youth returned from backend
-                </p>
-              )}
+              <h2 className="mb-4 font-display text-[22px] font-semibold text-ink-800">
+                Awaiting assignment
+              </h2>
 
               {dashboard?.pending?.length ? (
                 <div className="grid gap-4 lg:grid-cols-2">
@@ -199,9 +197,9 @@ export default function StaffDashboardHome() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-sm">
-                  <p className="text-slate-600">No youth waiting for assignment right now.</p>
-                </div>
+                <Card padding="lg" className="text-center">
+                  <p className="text-[15px] text-slate-600">No youth awaiting assignment right now.</p>
+                </Card>
               )}
             </section>
           </>

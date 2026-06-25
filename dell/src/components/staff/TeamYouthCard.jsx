@@ -1,32 +1,30 @@
 import { Link } from 'react-router-dom'
-import RiskBadge from './RiskBadge'
+import { RiskBadge, StatusPill } from '../ui'
 
 export default function TeamYouthCard({ youth, linkToDetail = false }) {
   const content = (
-    <>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className={`text-lg font-bold text-slate-800 ${linkToDetail ? 'group-hover:text-sky-700' : ''}`}>
-            {youth.name}
-          </h3>
-          <div className="mt-2">
-            <RiskBadge level={youth.riskLevel} />
-          </div>
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <h3
+          className={`font-display text-[18px] font-semibold text-ink-800 ${
+            linkToDetail ? 'group-hover:text-sky-600' : ''
+          }`}
+        >
+          {youth.name}
+        </h3>
+        <div className="mt-2">
+          <RiskBadge level={youth.riskLevel} showBar={youth.riskLevel === 'high'} />
         </div>
-        {!youth.onboardingCompleted && (
-          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
-            Onboarding
-          </span>
-        )}
       </div>
-    </>
+      {!youth.onboardingCompleted && <StatusPill status="onboarding">Onboarding</StatusPill>}
+    </div>
   )
 
   if (linkToDetail) {
     return (
       <Link
         to={`/staff-dashboard/youth/${youth.id}`}
-        className="group block rounded-3xl border border-slate-100 bg-white p-5 shadow-sm transition hover:border-sky-100 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+        className="group block rounded-card border border-slate-200 bg-white p-5 shadow-card transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500 motion-safe:hover:shadow-card-hover"
       >
         {content}
       </Link>
@@ -34,8 +32,6 @@ export default function TeamYouthCard({ youth, linkToDetail = false }) {
   }
 
   return (
-    <article className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-      {content}
-    </article>
+    <article className="rounded-card border border-slate-200 bg-white p-5 shadow-card">{content}</article>
   )
 }

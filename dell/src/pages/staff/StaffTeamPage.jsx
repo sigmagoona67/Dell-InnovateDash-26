@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import StaffNav from '../../components/staff/StaffNav'
 import StaffTeamCard from '../../components/staff/StaffTeamCard'
+import { Card, Skeleton } from '../../components/ui'
 import { getStaffDirectory } from '../../services/staffTeamService'
 
 export default function StaffTeamPage() {
@@ -31,52 +32,67 @@ export default function StaffTeamPage() {
   }, [])
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-white">
+    <div className="relative min-h-dvh overflow-hidden bg-slate-50">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 top-0 h-96 w-96 rounded-full bg-sky-50 blur-3xl" />
         <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-teal-50 blur-3xl" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-10">
-        <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <Link to="/staff-dashboard" className="text-sm font-medium text-sky-600 hover:text-sky-700">
-              ← Back to dashboard
-            </Link>
-            <p className="mt-3 text-xs font-medium uppercase tracking-wide text-sky-600">Care Team</p>
-            <h1 className="mt-1 text-3xl font-bold text-slate-800">Staff Directory</h1>
-            <p className="mt-2 max-w-2xl text-slate-600">
-              View your colleagues&apos; profiles, see who each staff member supports, and check caseload sizes across
-              the team.
-            </p>
-          </div>
+      <StaffNav />
+
+      <div className="relative z-10 mx-auto max-w-6xl px-6 py-8 lg:px-8 lg:py-10">
+        <header className="mb-8">
+          <p className="text-[12px] font-medium uppercase tracking-wide text-sky-600">Care Team</p>
+          <h1 className="mt-1 font-display text-[30px] font-bold leading-[1.1] text-ink-800">
+            Staff Directory
+          </h1>
+          <p className="mt-2 max-w-2xl text-[15px] text-slate-600">
+            View your colleagues&apos; profiles, see who each staff member supports, and check caseload capacity and
+            risk mix across the team.
+          </p>
         </header>
 
         {errorMessage && (
-          <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <p
+            role="alert"
+            className="mb-4 rounded-card border border-danger-100 bg-danger-100/50 px-4 py-3 text-[13px] text-danger-700"
+          >
             {errorMessage}
           </p>
         )}
 
         {loading ? (
-          <p className="text-slate-500">Loading care team…</p>
+          <div aria-live="polite" aria-busy="true">
+            <span className="sr-only">Loading care team…</span>
+            <div className="mb-8 grid gap-4 sm:grid-cols-2">
+              <Skeleton variant="block" className="h-24" />
+              <Skeleton variant="block" className="h-24" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} variant="block" className="h-48" />
+              ))}
+            </div>
+          </div>
         ) : (
           <>
             <section className="mb-8 grid gap-4 sm:grid-cols-2">
-              <article className="rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 to-white p-5 shadow-sm">
-                <p className="text-sm font-medium text-sky-700">Team members</p>
-                <p className="mt-2 text-3xl font-bold text-slate-800">{directory?.totals?.staffCount ?? 0}</p>
-              </article>
-              <article className="rounded-3xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm">
-                <p className="text-sm font-medium text-teal-700">Youth assigned across team</p>
-                <p className="mt-2 text-3xl font-bold text-slate-800">
+              <Card className="bg-sky-50">
+                <p className="text-[13px] font-medium text-sky-600">Team members</p>
+                <p className="mt-2 font-display text-[30px] font-bold text-ink-800">
+                  {directory?.totals?.staffCount ?? 0}
+                </p>
+              </Card>
+              <Card className="bg-teal-50">
+                <p className="text-[13px] font-medium text-teal-600">Youth assigned across team</p>
+                <p className="mt-2 font-display text-[30px] font-bold text-ink-800">
                   {directory?.totals?.assignedYouthCount ?? 0}
                 </p>
-              </article>
+              </Card>
             </section>
 
             <section>
-              <h2 className="mb-4 text-xl font-bold text-slate-800">All staff</h2>
+              <h2 className="mb-4 font-display text-[22px] font-semibold text-ink-800">All staff</h2>
               {directory?.staff?.length ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {directory.staff.map((member) => (
@@ -84,9 +100,9 @@ export default function StaffTeamPage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-sm">
-                  <p className="text-slate-600">No staff profiles found yet.</p>
-                </div>
+                <Card padding="lg" className="text-center">
+                  <p className="text-[15px] text-slate-600">No staff profiles found yet.</p>
+                </Card>
               )}
             </section>
           </>

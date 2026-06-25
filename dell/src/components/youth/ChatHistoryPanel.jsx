@@ -6,22 +6,7 @@ import {
   getSessionsForMonth,
   mapMessagesForUi,
 } from '../../services/chatService'
-
-function ChatBubble({ role, text }) {
-  const isUser = role === 'user'
-  return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`
-          max-w-[90%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed
-          ${isUser ? 'bg-teal-500 text-white' : 'border border-slate-100 bg-white text-slate-700'}
-        `}
-      >
-        {text}
-      </div>
-    </div>
-  )
-}
+import { ChatBubble, RiskBadge, Skeleton } from '../ui'
 
 export default function ChatHistoryPanel({ youthId }) {
   const now = new Date()
@@ -93,15 +78,22 @@ export default function ChatHistoryPanel({ youthId }) {
   }
 
   if (loading) {
-    return <p className="text-slate-500">Loading chat history...</p>
+    return (
+      <div role="status" aria-live="polite" className="space-y-4">
+        <span className="sr-only">Loading your chat history…</span>
+        <Skeleton variant="line" className="w-48" />
+        <Skeleton variant="block" />
+        <Skeleton variant="block" />
+      </div>
+    )
   }
 
   return (
     <div className="flex h-full flex-col gap-6 lg:flex-row">
       <div className="lg:w-80 lg:shrink-0">
         <header className="mb-4">
-          <h1 className="text-2xl font-bold text-slate-800">Chat History</h1>
-          <p className="mt-1 text-sm text-slate-500">Dates with conversations are marked in blue.</p>
+          <h1 className="font-display text-[30px] font-bold leading-[1.1] text-ink-800">Chat history</h1>
+          <p className="mt-1 text-[13px] font-medium text-slate-500">Days you talked are marked in blue.</p>
         </header>
         <MonthCalendar
           year={year}
@@ -112,62 +104,69 @@ export default function ChatHistoryPanel({ youthId }) {
         />
       </div>
 
-      <div className="flex min-h-[24rem] flex-1 flex-col rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="flex min-h-[24rem] flex-1 flex-col rounded-card border border-slate-200 bg-white p-5 shadow-card">
         {errorMessage && (
-          <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <p
+            role="alert"
+            className="mb-4 rounded-card border border-danger-100 bg-danger-100 px-4 py-3 text-[15px] text-danger-700"
+          >
             {errorMessage}
           </p>
         )}
 
         {!selectedSession ? (
-          <p className="text-slate-500">No conversations yet for this month.</p>
+          <p className="text-[15px] text-slate-600">No conversations yet this month.</p>
         ) : (
           <>
-            <div className="mb-4 flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <h2 className="font-semibold text-slate-800">
+            <div className="mb-4 flex items-center justify-between gap-4 border-b border-slate-200 pb-4">
+              <h2 className="font-display text-[18px] font-semibold leading-tight text-ink-800">
                 {new Date(selectedSession.session_date).toLocaleDateString('en-SG', {
                   day: 'numeric',
                   month: 'long',
                   year: 'numeric',
                 })}
               </h2>
-              <div className="inline-flex rounded-xl bg-slate-50 p-1">
+              <div className="inline-flex rounded-control bg-slate-100 p-1">
                 <button
                   type="button"
                   onClick={() => setTab('original')}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${tab === 'original' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500'}`}
+                  className={`rounded-control px-3 py-1.5 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${tab === 'original' ? 'bg-white text-sky-600 shadow-card' : 'text-slate-500'}`}
                 >
-                  Original Chat
+                  Chat
                 </button>
                 <button
                   type="button"
                   onClick={() => setTab('summary')}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${tab === 'summary' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500'}`}
+                  className={`rounded-control px-3 py-1.5 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${tab === 'summary' ? 'bg-white text-sky-600 shadow-card' : 'text-slate-500'}`}
                 >
-                  AI Summary
+                  Summary
                 </button>
               </div>
             </div>
 
             {tab === 'original' ? (
-              <div className="flex-1 space-y-3 overflow-y-auto">
+              <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
                 {messages.map((msg, index) => (
-                  <ChatBubble key={index} role={msg.role} text={msg.text} />
+                  <ChatBubble key={index} side={msg.role === 'user' ? 'youth' : 'ai'}>
+                    {msg.text}
+                  </ChatBubble>
                 ))}
               </div>
             ) : (
-              <div className="flex-1 space-y-4 overflow-y-auto rounded-2xl bg-sky-50/60 p-4">
+              <div className="flex-1 space-y-4 overflow-y-auto rounded-card bg-sky-50 p-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">Mood check-in</p>
-                  <p className="mt-1 text-sm text-slate-700">{selectedSession.mood_check_in || 'Not recorded'}</p>
+                  <p className="text-[12px] font-medium uppercase tracking-wide text-sky-600">Mood check-in</p>
+                  <p className="mt-1 text-[15px] text-slate-800">{selectedSession.mood_check_in || 'Not recorded'}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">Risk level</p>
-                  <p className="mt-1 text-sm capitalize text-slate-700">{selectedSession.risk_level || 'low'}</p>
+                  <p className="text-[12px] font-medium uppercase tracking-wide text-sky-600">Risk level</p>
+                  <div className="mt-1.5">
+                    <RiskBadge level={selectedSession.risk_level || 'low'} showBar />
+                  </div>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">AI Summary</p>
-                  <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                  <p className="text-[12px] font-medium uppercase tracking-wide text-sky-600">AI summary</p>
+                  <p className="mt-1 text-[15px] leading-[1.55] text-slate-800">
                     {selectedSession.ai_summary || 'No summary available yet.'}
                   </p>
                 </div>

@@ -1,4 +1,17 @@
+import Button from './ui/Button'
+
+/**
+ * Portal entry card. Restyled to the design system.
+ * Props: icon (lucide component, preferred), emoji (legacy fallback, decorative),
+ *        title, description, buttonLabel, accent ('sky'|'teal'), onEnter
+ */
+const ACCENT = {
+  sky: { iconBg: 'bg-sky-50 text-sky-600', glow: 'from-sky-100/60', ring: 'group-hover:ring-sky-100' },
+  teal: { iconBg: 'bg-teal-50 text-teal-600', glow: 'from-teal-100/60', ring: 'group-hover:ring-teal-100' },
+}
+
 export default function PortalCard({
+  icon: Icon,
   emoji,
   title,
   description,
@@ -6,75 +19,41 @@ export default function PortalCard({
   accent = 'sky',
   onEnter,
 }) {
-  const accents = {
-    sky: {
-      ring: 'hover:ring-sky-200',
-      iconBg: 'bg-sky-50',
-      button: 'bg-sky-500 hover:bg-sky-600 focus-visible:ring-sky-400',
-      glow: 'from-sky-100/60',
-    },
-    teal: {
-      ring: 'hover:ring-teal-200',
-      iconBg: 'bg-teal-50',
-      button: 'bg-teal-500 hover:bg-teal-600 focus-visible:ring-teal-400',
-      glow: 'from-teal-100/60',
-    },
-  }
-
-  const style = accents[accent]
+  const style = ACCENT[accent] || ACCENT.sky
 
   return (
     <article
       className={`
-        group relative flex flex-col rounded-3xl border border-slate-100
-        bg-white p-8 sm:p-10 shadow-[0_4px_24px_-4px_rgba(45,90,110,0.08)]
-        transition-all duration-300 ease-out
-        hover:-translate-y-1.5 hover:shadow-[0_16px_48px_-12px_rgba(45,90,110,0.14)]
+        group relative flex flex-col rounded-card border border-slate-200
+        bg-white p-8 shadow-card transition-all duration-300 ease-out
+        motion-safe:hover:-translate-y-1.5 hover:shadow-card-hover
         hover:ring-2 ${style.ring}
-        focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-sky-300
+        focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-slate-200
       `}
     >
       <div
         aria-hidden="true"
-        className={`
-          pointer-events-none absolute inset-x-6 top-0 h-24 rounded-b-full
-          bg-gradient-to-b ${style.glow} to-transparent opacity-0
-          transition-opacity duration-300 group-hover:opacity-100
-        `}
+        className={`pointer-events-none absolute inset-x-6 top-0 h-24 rounded-b-full bg-gradient-to-b ${style.glow} to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
       />
 
       <div
-        className={`
-          relative mb-6 flex h-16 w-16 items-center justify-center
-          rounded-2xl text-3xl ${style.iconBg}
-          transition-transform duration-300 group-hover:scale-105
-        `}
+        className={`relative mb-6 flex h-16 w-16 items-center justify-center rounded-card ${style.iconBg} motion-safe:transition-transform motion-safe:duration-300 motion-safe:group-hover:scale-105`}
         aria-hidden="true"
       >
-        {emoji}
+        {Icon ? <Icon className="h-8 w-8" strokeWidth={1.75} /> : <span className="text-3xl">{emoji}</span>}
       </div>
 
-      <h2 className="relative mb-3 text-2xl font-semibold tracking-tight text-slate-800">
+      <h2 className="relative mb-3 font-display text-[22px] font-semibold leading-[1.2] tracking-tight text-ink-800">
         {title}
       </h2>
 
-      <p className="relative mb-8 flex-1 text-base leading-relaxed text-slate-600">
+      <p className="relative mb-8 flex-1 text-[15px] leading-[1.55] text-slate-600">
         {description}
       </p>
 
-      <button
-        type="button"
-        onClick={onEnter}
-        className={`
-          relative w-full rounded-2xl px-6 py-4 text-base font-semibold
-          text-white shadow-sm transition-all duration-200
-          hover:shadow-md active:scale-[0.98]
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
-          ${style.button}
-        `}
-      >
+      <Button accent={accent} variant="primary" size="lg" onClick={onEnter} className="relative w-full">
         {buttonLabel}
-      </button>
+      </Button>
     </article>
   )
 }

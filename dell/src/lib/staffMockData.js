@@ -1,9 +1,11 @@
 export const RISK_ORDER = { high: 0, medium: 1, low: 2 }
 
+// Risk reads by weight + shape + label via the shared <RiskBadge> primitive.
+// Tokens here back any non-badge consumer; never emoji/color alone.
 export const RISK_LABELS = {
-  high: { label: 'High Risk', emoji: '🔴', className: 'bg-rose-50 text-rose-700 ring-rose-100' },
-  medium: { label: 'Medium Risk', emoji: '🟡', className: 'bg-amber-50 text-amber-700 ring-amber-100' },
-  low: { label: 'Low Risk', emoji: '🟢', className: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+  high: { label: 'High risk', className: 'bg-danger-600 text-white' },
+  medium: { label: 'Medium risk', className: 'bg-warning-100 text-warning-500' },
+  low: { label: 'Low risk', className: 'bg-success-100 text-success-600' },
 }
 
 export const MOCK_STAFF_PROFILE = {

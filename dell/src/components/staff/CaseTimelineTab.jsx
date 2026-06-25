@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { requireInsforge } from '../../lib/insforgeClient'
 import { getSessionMessages, mapMessagesForUi } from '../../services/chatService'
 import CaseTimelineCalendar from './CaseTimelineCalendar'
-import RiskBadge from './RiskBadge'
+import { RiskBadge } from '../ui'
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -59,12 +59,11 @@ export default function CaseTimelineTab({ detail }) {
         .eq('youth_id', youthId)
         .order('session_date', { ascending: false })
 
-      console.log('Staff timeline sessions:', data, error)
-
       if (cancelled) return
 
       if (error) {
-        setSessionsError(error.message || 'Failed to load AI chat sessions')
+        if (import.meta.env.DEV) console.debug('[staff] timeline sessions error', error?.message)
+        setSessionsError('Case timeline is unavailable right now. Please try again shortly.')
         setAiSessions([])
         return
       }
@@ -118,10 +117,9 @@ export default function CaseTimelineTab({ detail }) {
       try {
         const rows = await getSessionMessages(selectedEvent.id)
         const uiMessages = mapMessagesForUi(rows)
-        console.log('Staff timeline messages:', uiMessages, null)
         setMessages(uiMessages)
       } catch (error) {
-        console.log('Staff timeline messages:', [], error)
+        if (import.meta.env.DEV) console.debug('[staff] timeline messages error', error?.message)
         setMessages([])
       } finally {
         setMessagesLoading(false)
@@ -167,7 +165,12 @@ export default function CaseTimelineTab({ detail }) {
       </header>
 
       {sessionsError && (
-        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{sessionsError}</p>
+        <p
+          role="alert"
+          className="rounded-card border border-danger-100 bg-danger-100/50 px-4 py-3 text-[13px] text-danger-700"
+        >
+          {sessionsError}
+        </p>
       )}
 
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -188,10 +191,10 @@ export default function CaseTimelineTab({ detail }) {
           ) : (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
-                <h3 className="text-lg font-bold text-slate-800">
-                  {selectedEvent.type === 'ai' ? '🔵 AI Chat' : '🟡 Offline Counselling'} · {selectedEvent.session_date}
+                <h3 className="font-display text-[18px] font-semibold text-ink-800">
+                  {selectedEvent.type === 'ai' ? 'AI Chat' : 'Offline Counselling'} · {selectedEvent.session_date}
                 </h3>
-                <RiskBadge level={selectedEvent.risk_level || 'low'} />
+                <RiskBadge level={selectedEvent.risk_level || 'low'} showBar={selectedEvent.risk_level === 'high'} />
               </div>
 
               {dayEvents.length > 1 && (
