@@ -1,5 +1,6 @@
 import { CARE_INSIGHTS_QUALITY_EXAMPLES } from './profileBundlePrompts.js'
 import { preserveQualityCareInsights } from './profileQuality.js'
+import { isCasualPositiveMessage } from './youthChatReply.js'
 
 const MOOD_CHECKIN_LINE = /^i'm feeling (good|okay|sad|stressed|overwhelmed) today\.?$/i
 
@@ -219,11 +220,23 @@ export function collectCareInsightsContext({
   }
 }
 
-/** Full replace when AI generated meets quality bar; otherwise keep saved care insights. */
-export function regenerateCareInsights({ aiGenerated = {}, saved = {} } = {}) {
+/** Full replace when AI generated meets quality bar; otherwise saved, then rule-based fallback from context. */
+export function regenerateCareInsights({ aiGenerated = {}, saved = {}, context = null } = {}) {
   const generated = normalizeCareInsights(aiGenerated)
-  if (!isCareInsightsQuality(generated)) return normalizeCareInsights(saved)
-  return preserveQualityCareInsights(normalizeCareInsights(saved), generated)
+  if (isCareInsightsQuality(generated)) {
+    return preserveQualityCareInsights(normalizeCareInsights(saved), generated)
+  }
+  const savedNorm = normalizeCareInsights(saved)
+  if (isCareInsightsQuality(savedNorm)) return savedNorm
+  if (context) {
+    const ctx =
+      context.youthSpeech != null || context.latestInteraction != null
+        ? context
+        : collectCareInsightsContext(context)
+    const fallback = buildCareInsightsFallbackFromContext(ctx)
+    if (isCareInsightsQuality(fallback)) return fallback
+  }
+  return savedNorm
 }
 
 /** Display / read path — saved DB care insights only. */
@@ -233,4 +246,114 @@ export function resolveCareInsights({ savedProfile } = {}) {
 
 export function buildCareInsightsFallback() {
   return { ...EMPTY_CARE_INSIGHTS }
+}
+
+function pushUnique(target, items, limit = 5) {
+  const seen = new Set(target.map((item) => String(item).toLowerCase()))
+  for (const item of items || []) {
+    const tag = String(item || '').trim()
+    const key = tag.toLowerCase()
+    if (!tag || seen.has(key)) continue
+    seen.add(key)
+    target.push(tag)
+    if (target.length >= limit) break
+  }
+}
+
+/** Rule-based care insights when OpenRouter is unavailable — mirrors InsForge live behaviour. */
+export function buildCareInsightsFallbackFromContext(context = {}) {
+  const youthSpeech = String(context.youthSpeech || '').trim()
+  const latest = context.latestInteraction || {}
+  const latestText = String(latest.youthSpeech || latest.summary || context.latestExchangeSummary || '').trim()
+  const corpus = [youthSpeech, latestText].filter(Boolean).join('\n')
+  const recentMood = String(latest.mood || (context.moodHistory || [])[0] || '').trim()
+  const challenges = asArray(context.questionnaire?.current_challenges)
+
+  if (!corpus && !recentMood && !challenges.length) {
+    return { ...EMPTY_CARE_INSIGHTS }
+  }
+
+  const current_state = []
+  const main_risk = []
+  const best_communication_approach = []
+  let latest_change = ''
+
+  if (/想自杀|自杀|不想活|自伤|suicide|kill myself|hurt myself|self.?harm|want to die/i.test(corpus)) {
+    pushUnique(current_state, ['Expressing suicidal ideation', 'Emotionally distressed'], 3)
+    pushUnique(main_risk, ['Suicide risk', 'Acute emotional overwhelm'], 3)
+    pushUnique(best_communication_approach, [
+      'Validate feelings calmly without judgment',
+      'Check immediate safety and whether anyone is with them',
+      'Encourage contacting a trusted adult or crisis line tonight',
+    ], 5)
+    latest_change =
+      'Shared suicidal thoughts in after-hours AI chat and may need urgent, warm follow-up.'
+  } else if (/霸凌|bully|欺负|扔东西/i.test(corpus)) {
+    pushUnique(current_state, ['Feeling targeted or unsafe with peers', 'Emotionally hurt'], 3)
+    pushUnique(main_risk, ['Bullying or peer mistreatment', 'School safety concerns'], 3)
+    pushUnique(best_communication_approach, [
+      'Acknowledge that mistreatment is not their fault',
+      'Explore who can support them at school tomorrow',
+      'Keep questions concrete about what happened and who was involved',
+    ], 5)
+    latest_change = 'Reported bullying or peer targeting in recent after-hours contact.'
+  } else if (/爸妈|父母|吵架|hitting|hit me|abuse|family conflict/i.test(corpus) || challenges.some((c) => /family/i.test(c))) {
+    pushUnique(current_state, ['Carrying family-related stress', 'May feel unsafe or unheard at home'], 3)
+    pushUnique(main_risk, ['Family conflict', 'Home environment stress'], 3)
+    pushUnique(best_communication_approach, [
+      'Start with safety and what feels hardest right now',
+      'Avoid minimizing — family stress can feel overwhelming',
+      'Explore trusted adults they could reach out to',
+    ], 5)
+    latest_change = 'Family tension or conflict surfaced as a key stressor in recent contact.'
+  } else if (isCasualPositiveMessage(latestText) && !/suicide|kill myself|self.?harm/i.test(corpus)) {
+    pushUnique(current_state, ['Sharing interests or small comforts', 'Engaging openly in chat'], 3)
+    pushUnique(main_risk, ['Routine emotional support'], 3)
+    pushUnique(best_communication_approach, [
+      'Acknowledge what they enjoy before exploring harder topics',
+      'Use a warm, curious tone about their interests',
+      'Let them lead if they want to stay on lighter topics',
+    ], 5)
+    latest_change = `Mentioned "${latestText.replace(/\s+/g, ' ').slice(0, 80)}" — a positive topic worth encouraging.`
+  } else if (/sad|stressed|overwhelmed|难过|压力|崩溃/i.test(corpus) || /sad|stressed|overwhelmed/i.test(recentMood)) {
+    const moodLabel = /sad/i.test(corpus + recentMood)
+      ? 'sad'
+      : /stressed/i.test(corpus + recentMood)
+        ? 'stressed'
+        : 'overwhelmed'
+    pushUnique(current_state, [`Presenting as ${moodLabel}`, 'May need gentle emotional support'], 3)
+    pushUnique(main_risk, ['Emotional overwhelm', 'Low mood affecting daily coping'], 3)
+    pushUnique(best_communication_approach, [
+      'Use a calm, unhurried tone',
+      'Reflect their words before offering suggestions',
+      'Ask what would feel most helpful right now',
+    ], 5)
+    latest_change = `Recent mood check-in or messages suggest sustained ${moodLabel} feelings worth exploring.`
+  }
+
+  for (const challenge of challenges.slice(0, 2)) {
+    pushUnique(main_risk, [String(challenge)], 3)
+  }
+
+  if (!best_communication_approach.length) {
+    pushUnique(best_communication_approach, [
+      'Use a calm, unhurried tone',
+      'Reflect what they shared before offering suggestions',
+      'Leave space for them to share at their own pace',
+    ], 5)
+  }
+
+  if (!latest_change && latestText) {
+    const snippet = latestText.replace(/\s+/g, ' ').slice(0, 90)
+    latest_change = `Recent contact included themes around "${snippet}" that may benefit from gentle follow-up.`
+  } else if (!latest_change && recentMood) {
+    latest_change = `Latest mood check-in was "${recentMood}" — worth exploring what has been weighing on them.`
+  }
+
+  return normalizeCareInsights({
+    current_state,
+    main_risk,
+    best_communication_approach,
+    latest_change,
+  })
 }

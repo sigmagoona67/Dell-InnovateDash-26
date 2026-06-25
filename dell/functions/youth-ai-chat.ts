@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@insforge/sdk'
+import { createClient } from '../backend/lib/createClient.js'
 
 // Keep in sync with functions/shared/profileBundlePrompts.ts + profileQuality.ts
 const PROFILE_GENERATION_TEMPERATURE = 0.35
@@ -507,8 +507,61 @@ function youthLines(messages) {
 
 const MOOD_CHECKIN_LINE = /^i'm feeling (good|okay|sad|stressed|overwhelmed) today\.?$/i
 
-function inferRiskFromTranscript() {
+const CRISIS_TEXT_RE = /想自杀|自杀|不想活|自伤|suicide|kill myself|hurt myself|want to die|self.?harm/i
+const HIGH_RISK_TEXT_RE = /霸凌|bully|扔东西|欺负|跟踪|跟着我|stalk|盯着我|hitting|hit me|abuse|打/i
+const MEDIUM_RISK_TEXT_RE = /吵架|压力|难过|sad|stress|stressed|崩溃|overwhelm|anxious|受不了|撑不住/i
+
+function inferRiskFromText(text = '') {
+  const value = String(text || '')
+  if (CRISIS_TEXT_RE.test(value)) return 'high'
+  if (HIGH_RISK_TEXT_RE.test(value)) return 'high'
+  if (MEDIUM_RISK_TEXT_RE.test(value)) return 'medium'
   return 'low'
+}
+
+function inferRiskFromMessage(message = '') {
+  return inferRiskFromText(message)
+}
+
+function inferRiskFromTranscript(messages = []) {
+  const youthText = (messages || [])
+    .filter((m) => m.sender === 'youth')
+    .map((m) => String(m.message || '').trim())
+    .filter((line) => line && !MOOD_CHECKIN_LINE.test(line))
+    .join(' ')
+  return inferRiskFromText(youthText)
+}
+
+function normalizeYouthCasualText(message = '') {
+  return String(message || '')
+    .trim()
+    .replace(/^ilike\b/i, 'i like')
+    .replace(/^ilove\b/i, 'i love')
+    .replace(/^ienjoy\b/i, 'i enjoy')
+}
+
+function isCasualPositiveMessage(message = '') {
+  const raw = String(message || '').trim()
+  if (!raw || raw.length > 120) return false
+  if (MOOD_CHECKIN_LINE.test(raw)) return false
+  if (
+    /想自杀|自杀|自伤|hurt myself|suicide|kill myself|abuse|bully|hit me|打|骂|欺负|only .+ make(s)? me feel/i.test(
+      raw,
+    )
+  ) {
+    return false
+  }
+  const text = normalizeYouthCasualText(raw)
+  return (
+    /\b(i'?m\s+)?(really\s+)?(into|like|love|enjoy|prefer)\b/i.test(text) ||
+    /^我很喜欢|我喜欢|我超喜欢|我爱/.test(raw)
+  )
+}
+
+function inferRiskForChatTurn(messages = [], latestMessage = '') {
+  const latest = String(latestMessage || '').trim()
+  if (isCasualPositiveMessage(latest)) return 'low'
+  return pickHigherRisk(inferRiskFromText(latest), inferRiskFromTranscript(messages))
 }
 
 function buildDynamicProfileFromYouthText() {
@@ -520,6 +573,89 @@ function buildDynamicProfileFromYouthText() {
     current_challenges: [],
     coping_methods: [],
   }
+}
+
+function buildDynamicProfileRuleFallback(context: ReturnType<typeof collectDynamicProfileContext>) {
+  const corpus = [context.youthSpeech, context.offlineTranscripts, ...(context.sessionSummaries || [])]
+    .filter(Boolean)
+    .join('\n')
+  const questionnaire = context.staticProfile
+  const staticInterests = asProfileArray(questionnaire?.interests)
+
+  if (!corpus.trim() && !(context.moodHistory || []).length) {
+    return profileDynamicFieldsForDisplay(buildDynamicProfileFromYouthText())
+  }
+
+  const personality: string[] = []
+  const coping_methods: string[] = []
+  const interests: string[] = []
+  let living_arrangement = ''
+
+  const pushUnique = (target: string[], items: string[], limit = 4) => {
+    const seen = new Set(target.map((item) => item.toLowerCase()))
+    for (const item of items) {
+      const tag = String(item || '').trim()
+      const key = tag.toLowerCase()
+      if (!tag || seen.has(key)) continue
+      seen.add(key)
+      target.push(tag)
+      if (target.length >= limit) break
+    }
+  }
+
+  if (/suicide|kill myself|hurt myself|想自杀|self.?harm/i.test(corpus)) {
+    pushUnique(personality, ['Emotionally distressed', 'May need gentle reassurance'])
+    pushUnique(coping_methods, ['Reaching out through after-hours AI chat'])
+  }
+  if (
+    /sad|stressed|overwhelmed|难过|压力|崩溃/i.test(corpus) ||
+    (context.moodHistory || []).some((m) => /sad|stressed|overwhelmed/i.test(String(m)))
+  ) {
+    pushUnique(personality, ['Carrying low mood', 'May appear withdrawn when overwhelmed'])
+  }
+  if (
+    /family|parent|home|爸妈|父母|吵架|conflict/i.test(corpus) ||
+    asProfileArray(questionnaire?.current_challenges).some((c) => /family/i.test(c))
+  ) {
+    living_arrangement = 'Family tension affecting home environment'
+    pushUnique(personality, ['Sensitive to family stress'])
+  }
+  if (/school|exam|homework|class|学业|bully|peer/i.test(corpus)) {
+    pushUnique(personality, ['School stress affecting daily mood'])
+  }
+  if (/minecraft|mobile game|gaming|game/i.test(corpus)) {
+    pushUnique(interests, ['Mobile gaming as emotional refuge'])
+    pushUnique(coping_methods, ['Immersive gaming for comfort'])
+  } else if (staticInterests.some((item) => /game/i.test(item))) {
+    pushUnique(coping_methods, ['Mobile gaming for relaxation'])
+  }
+  if (/piano|guitar|violin|drums|cello|ukulele/i.test(corpus)) {
+    const instrument = /piano/i.test(corpus)
+      ? 'Piano'
+      : /guitar/i.test(corpus)
+        ? 'Guitar'
+        : /violin/i.test(corpus)
+          ? 'Violin'
+          : 'Music'
+    pushUnique(interests, [instrument])
+    pushUnique(coping_methods, ['Music as emotional outlet'])
+  } else if (/music|sing|song/i.test(corpus)) {
+    pushUnique(interests, ['Music'])
+    pushUnique(coping_methods, ['Listening to or playing music for comfort'])
+  }
+  if (/bird|leaf|headphone|aquarium|quiet|draw|art/i.test(corpus)) {
+    pushUnique(coping_methods, ['Quiet sensory activities for self-regulation'])
+  }
+  if (!personality.length && corpus.trim()) {
+    pushUnique(personality, ['Opening up gradually in after-hours chat'])
+  }
+
+  return profileDynamicFieldsForDisplay({
+    interests,
+    personality,
+    living_arrangement,
+    coping_methods,
+  })
 }
 
 function themePhrase(text) {
@@ -1313,6 +1449,12 @@ async function generateDynamicProfile(
     console.error('[youth-ai-chat] dynamic-profile AI failed, keeping existing:', (aiError as Error).message)
   }
 
+  const fallback = buildDynamicProfileRuleFallback(context)
+  if (hasDynamicProfileData(fallback)) {
+    console.log('[youth-ai-chat] using rule-based dynamic-profile fallback')
+    return fallback
+  }
+
   return profileDynamicFieldsForDisplay(existingDynamic)
 }
 
@@ -1459,13 +1601,139 @@ function hasCareInsightsSignal(context: ReturnType<typeof collectCareInsightsCon
 function regenerateCareInsights({
   aiGenerated = {},
   saved = {},
+  context = null,
 }: {
   aiGenerated?: Record<string, unknown>
   saved?: Record<string, unknown>
+  context?: Record<string, unknown> | null
 }) {
   const generated = normalizeCareInsights(aiGenerated)
-  if (!isCareInsightsQuality(generated)) return normalizeCareInsights(saved)
-  return preserveQualityCareInsights(normalizeCareInsights(saved), generated)
+  if (isCareInsightsQuality(generated)) {
+    return preserveQualityCareInsights(normalizeCareInsights(saved), generated)
+  }
+  const savedNorm = normalizeCareInsights(saved)
+  if (isCareInsightsQuality(savedNorm)) return savedNorm
+  if (context) {
+    const ctx =
+      context.youthSpeech != null || context.latestInteraction != null
+        ? context
+        : collectCareInsightsContext(context as Parameters<typeof collectCareInsightsContext>[0])
+    const fallback = buildCareInsightsRuleFallback(ctx as ReturnType<typeof collectCareInsightsContext>)
+    if (isCareInsightsQuality(fallback)) return fallback
+  }
+  return savedNorm
+}
+
+function buildCareInsightsRuleFallback(context: ReturnType<typeof collectCareInsightsContext>) {
+  const youthSpeech = String(context.youthSpeech || '').trim()
+  const latest = context.latestInteraction || null
+  const latestText = String(
+    (latest as { youthSpeech?: string; summary?: string } | null)?.youthSpeech ||
+      (latest as { summary?: string } | null)?.summary ||
+      context.latestExchangeSummary ||
+      '',
+  ).trim()
+  const corpus = [youthSpeech, latestText].filter(Boolean).join('\n')
+  const recentMood = String(
+    (latest as { mood?: string } | null)?.mood || (context.moodHistory || [])[0] || '',
+  ).trim()
+  const questionnaire = (context.questionnaire || {}) as Record<string, unknown>
+  const challenges = asProfileArray(questionnaire.current_challenges)
+
+  if (!corpus && !recentMood && !challenges.length) {
+    return normalizeCareInsights(null)
+  }
+
+  const current_state: string[] = []
+  const main_risk: string[] = []
+  const best_communication_approach: string[] = []
+  let latest_change = ''
+
+  const pushUnique = (target: string[], items: string[], limit = 5) => {
+    const seen = new Set(target.map((item) => item.toLowerCase()))
+    for (const item of items) {
+      const tag = String(item || '').trim()
+      const key = tag.toLowerCase()
+      if (!tag || seen.has(key)) continue
+      seen.add(key)
+      target.push(tag)
+      if (target.length >= limit) break
+    }
+  }
+
+  if (/想自杀|自杀|不想活|自伤|suicide|kill myself|hurt myself|self.?harm|want to die/i.test(corpus)) {
+    pushUnique(current_state, ['Expressing suicidal ideation', 'Emotionally distressed'], 3)
+    pushUnique(main_risk, ['Suicide risk', 'Acute emotional overwhelm'], 3)
+    pushUnique(best_communication_approach, [
+      'Validate feelings calmly without judgment',
+      'Check immediate safety and whether anyone is with them',
+      'Encourage contacting a trusted adult or crisis line tonight',
+    ], 5)
+    latest_change =
+      'Shared suicidal thoughts in after-hours AI chat and may need urgent, warm follow-up.'
+  } else if (/霸凌|bully|欺负|扔东西/i.test(corpus)) {
+    pushUnique(current_state, ['Feeling targeted or unsafe with peers', 'Emotionally hurt'], 3)
+    pushUnique(main_risk, ['Bullying or peer mistreatment', 'School safety concerns'], 3)
+    pushUnique(best_communication_approach, [
+      'Acknowledge that mistreatment is not their fault',
+      'Explore who can support them at school tomorrow',
+      'Keep questions concrete about what happened and who was involved',
+    ], 5)
+    latest_change = 'Reported bullying or peer targeting in recent after-hours contact.'
+  } else if (/爸妈|父母|吵架|hitting|hit me|abuse|family conflict/i.test(corpus) || challenges.some((c) => /family/i.test(c))) {
+    pushUnique(current_state, ['Carrying family-related stress', 'May feel unsafe or unheard at home'], 3)
+    pushUnique(main_risk, ['Family conflict', 'Home environment stress'], 3)
+    pushUnique(best_communication_approach, [
+      'Start with safety and what feels hardest right now',
+      'Avoid minimizing — family stress can feel overwhelming',
+      'Explore trusted adults they could reach out to',
+    ], 5)
+    latest_change = 'Family tension or conflict surfaced as a key stressor in recent contact.'
+  } else if (isCasualPositiveMessage(latestText) && !/suicide|kill myself|self.?harm/i.test(corpus)) {
+    pushUnique(current_state, ['Sharing interests or small comforts', 'Engaging openly in chat'], 3)
+    pushUnique(main_risk, ['Routine emotional support'], 3)
+    pushUnique(best_communication_approach, [
+      'Acknowledge what they enjoy before exploring harder topics',
+      'Use a warm, curious tone about their interests',
+      'Let them lead if they want to stay on lighter topics',
+    ], 5)
+    latest_change = `Mentioned "${latestText.replace(/\s+/g, ' ').slice(0, 80)}" — a positive topic worth encouraging.`
+  } else if (/sad|stressed|overwhelmed|难过|压力|崩溃/i.test(corpus) || /sad|stressed|overwhelmed/i.test(recentMood)) {
+    const moodLabel = /sad/i.test(`${corpus}${recentMood}`)
+      ? 'sad'
+      : /stressed/i.test(`${corpus}${recentMood}`)
+        ? 'stressed'
+        : 'overwhelmed'
+    pushUnique(current_state, [`Presenting as ${moodLabel}`, 'May need gentle emotional support'], 3)
+    pushUnique(main_risk, ['Emotional overwhelm', 'Low mood affecting daily coping'], 3)
+    pushUnique(best_communication_approach, [
+      'Use a calm, unhurried tone',
+      'Reflect their words before offering suggestions',
+      'Ask what would feel most helpful right now',
+    ], 5)
+    latest_change = `Recent mood check-in or messages suggest sustained ${moodLabel} feelings worth exploring.`
+  }
+
+  for (const challenge of challenges.slice(0, 2)) {
+    pushUnique(main_risk, [challenge], 3)
+  }
+
+  if (!best_communication_approach.length) {
+    pushUnique(best_communication_approach, [
+      'Use a calm, unhurried tone',
+      'Reflect what they shared before offering suggestions',
+      'Leave space for them to share at their own pace',
+    ], 5)
+  }
+
+  if (!latest_change && latestText) {
+    const snippet = latestText.replace(/\s+/g, ' ').slice(0, 90)
+    latest_change = `Recent contact included themes around "${snippet}" that may benefit from gentle follow-up.`
+  } else if (!latest_change && recentMood) {
+    latest_change = `Latest mood check-in was "${recentMood}" — worth exploring what has been weighing on them.`
+  }
+
+  return normalizeCareInsights({ current_state, main_risk, best_communication_approach, latest_change })
 }
 
 async function generateCareInsights(
@@ -1534,6 +1802,12 @@ async function generateCareInsights(
     }
   } catch (aiError) {
     console.error('[youth-ai-chat] care-insights AI failed, keeping existing:', (aiError as Error).message)
+  }
+
+  const fallback = buildCareInsightsRuleFallback(context)
+  if (isCareInsightsQuality(fallback)) {
+    console.log('[youth-ai-chat] using rule-based care-insights fallback')
+    return fallback
   }
 
   return normalizeCareInsights(existingCareInsights)
@@ -1653,6 +1927,16 @@ function mergeInsights(
       latest_change: gen.latest_change,
     },
     saved: prev,
+    context: {
+      youthName: preferredName,
+      questionnaire,
+      dynamicProfile: dynamic_profile,
+      existingCareInsights: prev,
+      messages,
+      aiSessions,
+      offlineSessions,
+      latestExchangeSummary: summary,
+    },
   })
 
   const atAGlanceContext = collectAtAGlanceContext({
@@ -2195,6 +2479,22 @@ function snippetReflect(message: string, maxWords = 18) {
   return `${slice}${words.length > maxWords ? '…' : ''}`
 }
 
+function buildCasualPositiveFallback(message: string) {
+  const raw = String(message || '').trim()
+  const text = normalizeYouthCasualText(raw)
+  const heard = snippetReflect(text, 12)
+  if (/[\u4e00-\u9fff]/.test(raw)) {
+    return `谢谢你愿意跟我分享这个，听起来「${heard}」对你来说是一件很温暖的小事。 • 把这些让你开心的小事记下来，心情不好时可以翻看 • 如果愿意，可以多说说你喜欢它的哪一点 • 享受这些小快乐是没问题的，不用觉得不好意思。你今天还想多聊聊吗？`
+  }
+  if (/piano|guitar|violin|drums|music|sing/i.test(text)) {
+    return `I'm glad you mentioned music — it sounds like ${heard} matters to you. • Playing or listening can be a real way to settle when the day feels heavy • You could notice what you enjoy most: the sound, the rhythm, or how it feels in your hands • Small creative rituals like this are worth keeping. What do you like most about it?`
+  }
+  if (/cookie|snack|food|eat|pizza|cake/i.test(text)) {
+    return `I'm glad you shared that — it sounds like ${heard} is a small comfort that feels good to you. • Enjoying simple treats is completely okay, especially on harder days • You could notice what you like about it — taste, warmth, or a familiar ritual • Little pleasures like this can be gentle anchors. What is your favourite part about it?`
+  }
+  return `I'm glad you shared that — it sounds like ${heard} is something that brings you a little comfort or joy. • Small likes such as food, hobbies, or routines can be real anchors on harder days • If you want, tell me what you enjoy most about it — taste, smell, memory, or ritual • It's completely okay to lean on simple things that feel good. What is it about that you like best?`
+}
+
 function buildRichEnglishEmotionalFallback(message: string) {
   const text = String(message || '').trim()
   const heard = snippetReflect(text)
@@ -2333,6 +2633,16 @@ Feeling scared or angry is completely understandable. What happened tonight that
 
   if (needsRichReply(text)) {
     return buildRichEnglishEmotionalFallback(text)
+  }
+
+  const moodMatch = text.match(MOOD_CHECKIN_LINE)
+  if (moodMatch) {
+    const moodKey = moodMatch[1].charAt(0).toUpperCase() + moodMatch[1].slice(1).toLowerCase()
+    if (MOOD_REPLIES[moodKey]) return MOOD_REPLIES[moodKey]
+  }
+
+  if (isCasualPositiveMessage(text)) {
+    return buildCasualPositiveFallback(text)
   }
 
   return MOOD_REPLY_SAD
@@ -2662,12 +2972,53 @@ async function regenerateAllProfileInsights(
   }
 
   const dynamicFromAi = generated.dynamic_profile as Record<string, unknown>
+  let dynamicProfileDisplay = profileDynamicFieldsForDisplay(dynamicFromAi)
+  if (!hasDynamicProfileData(dynamicProfileDisplay)) {
+    const dynamicCtx = collectDynamicProfileContext({
+      questionnaire,
+      existingDynamic: existing?.dynamic_profile as Record<string, unknown> | undefined,
+      messages,
+      aiSessions: sessions,
+      offlineSessions,
+      overallSummary: String(generated.overall_summary || '').trim(),
+      careInsights: existing || null,
+    })
+    const dynamicFallback = buildDynamicProfileRuleFallback(dynamicCtx)
+    if (hasDynamicProfileData(dynamicFallback)) {
+      dynamicProfileDisplay = dynamicFallback
+      generated.dynamic_profile = dynamicFallback
+      console.log('[youth-ai-chat] using rule-based dynamic-profile fallback for', youthId)
+    }
+  }
+
   const atAGlanceGenerated = String(generated.overall_summary || '').trim()
-  const careFromAi = {
+  let careFromAi = {
     current_state: generated.current_state,
     main_risk: generated.main_risk,
     best_communication_approach: generated.best_communication_approach,
     latest_change: generated.latest_change,
+  }
+
+  if (!isCareInsightsQuality(careFromAi)) {
+    const careCtx = collectCareInsightsContext({
+      youthName: preferredName,
+      questionnaire,
+      dynamicProfile: dynamicFromAi,
+      existingCareInsights: existing,
+      messages,
+      aiSessions: sessions,
+      offlineSessions,
+      latestExchangeSummary: summary,
+    })
+    const careFallback = buildCareInsightsRuleFallback(careCtx)
+    if (isCareInsightsQuality(careFallback)) {
+      careFromAi = careFallback
+      generated.current_state = careFallback.current_state
+      generated.main_risk = careFallback.main_risk
+      generated.best_communication_approach = careFallback.best_communication_approach
+      generated.latest_change = careFallback.latest_change
+      console.log('[youth-ai-chat] using rule-based care-insights fallback for', youthId)
+    }
   }
 
   if (
@@ -2696,7 +3047,7 @@ async function regenerateAllProfileInsights(
   const merged = mergeInsights(
     existing,
     {
-      dynamic_profile: dynamicFromAi,
+      dynamic_profile: dynamicProfileDisplay,
       overall_summary: String(generated.overall_summary || atAGlanceGenerated || '').trim(),
       current_concern: generated.current_concern,
       case_preview: generated.case_preview,
@@ -2733,7 +3084,7 @@ async function regenerateAllProfileInsights(
   return saved
 }
 
-/** Bump risk on existing row only — never write rule-based At a Glance before full AI regen. */
+/** Bump risk on insights row — creates row if missing so staff Profile view stays in sync. */
 async function saveQuickRiskLevelOnly(
   client,
   youthId: string,
@@ -2747,10 +3098,40 @@ async function saveQuickRiskLevelOnly(
     .eq('youth_id', youthId)
     .maybeSingle()
 
-  if (readError || !existing) return existing || null
+  if (readError) {
+    console.error('[youth-ai-chat] quick risk read failed:', readError.message)
+    return null
+  }
 
-  const nextRisk = pickHigherRisk(String(existing.risk_level || 'low'), riskLevel || 'low')
-  const nextCrisis = Boolean(existing.crisis_detected) || crisisDetected
+  const nextRisk = pickHigherRisk(String(existing?.risk_level || 'low'), riskLevel || 'low')
+  const nextCrisis = Boolean(existing?.crisis_detected) || crisisDetected
+
+  if (!existing) {
+    const insertPayload: Record<string, unknown> = {
+      youth_id: youthId,
+      risk_level: nextRisk,
+      current_state: [],
+      main_risk: [],
+      best_communication_approach: [],
+      latest_change: '',
+      overall_summary: '',
+    }
+    if (nextCrisis) {
+      insertPayload.crisis_detected = true
+      insertPayload.last_crisis_at = new Date().toISOString()
+    }
+    const { data: saved, error: insertError } = await writeClient.database
+      .from('ai_dynamic_insights')
+      .insert([insertPayload])
+      .select('*')
+      .maybeSingle()
+    if (insertError) {
+      console.error('[youth-ai-chat] quick risk insert failed:', insertError.message)
+      return null
+    }
+    return saved
+  }
+
   if (nextRisk === existing.risk_level && nextCrisis === Boolean(existing.crisis_detected)) return existing
 
   const updatePayload: Record<string, unknown> = { risk_level: nextRisk }
@@ -3056,7 +3437,7 @@ export default async function handler(req) {
 
         let reply = buildQuickFallbackReply(trimmed)
         let summary = buildStaffSummaryFromMessage(trimmed)
-        let riskLevel = inferRiskFromTranscript(history || []) || 'low'
+        let riskLevel = inferRiskForChatTurn(history || [], trimmed) || 'low'
         let crisisDetected = false
         let escalationNeeded = false
         let model = 'local-fallback'
@@ -3098,11 +3479,13 @@ export default async function handler(req) {
             reply = finalizeReply(trimmed, buildQuickFallbackReply(trimmed))
             model = 'chatgpt-contradiction-fallback'
             replySource = 'fallback'
+            riskLevel = inferRiskForChatTurn(history || [], trimmed)
           } else {
             console.warn('[youth-ai-chat] ChatGPT reply still too short, using fallback')
             reply = finalizeReply(trimmed, buildQuickFallbackReply(trimmed))
             model = 'chatgpt-short-fallback'
             replySource = 'fallback'
+            riskLevel = inferRiskForChatTurn(history || [], trimmed)
           }
           summary = parsed.summary || buildStaffSummaryFromMessage(trimmed)
           const parsedRisk = ['low', 'medium', 'high'].includes(parsed.riskLevel) ? parsed.riskLevel : 'low'
@@ -3111,9 +3494,13 @@ export default async function handler(req) {
           console.error('[youth-ai-chat] sendMessage ChatGPT failed, using fallback:', chatError.message)
           reply = finalizeReply(trimmed, buildQuickFallbackReply(trimmed))
           replySource = 'fallback'
-          if (/想自杀|自杀|自伤/i.test(trimmed)) riskLevel = 'high'
-          else if (/霸凌|bully|扔东西|欺负|跟踪/i.test(trimmed)) riskLevel = 'high'
-          else if (/吵架|压力|难过|sad|stress|崩溃/i.test(trimmed)) riskLevel = 'medium'
+          riskLevel = inferRiskForChatTurn(history || [], trimmed)
+          aiParsed = {}
+        }
+
+        if (isCasualPositiveMessage(trimmed)) {
+          riskLevel = 'low'
+          aiParsed = { riskLevel: 'low', crisisDetected: false, escalationNeeded: false }
         }
 
         ;({ riskLevel, crisisDetected, escalationNeeded } = normalizeSafetyAssessment(riskLevel, aiParsed))
@@ -3164,10 +3551,13 @@ export default async function handler(req) {
       } catch (sendError) {
         console.error('[youth-ai-chat] sendMessage fatal, returning fallback:', sendError.message)
         const reply = buildQuickFallbackReply(trimmed)
-        let fallbackRisk = inferRiskFromTranscript([{ sender: 'youth', message: trimmed }]) || 'medium'
-        if (/想自杀|自杀|自伤/i.test(trimmed)) fallbackRisk = 'high'
-        else if (/霸凌|bully|扔东西|欺负|跟踪/i.test(trimmed)) fallbackRisk = 'high'
-        const { riskLevel: finalRisk, crisisDetected, escalationNeeded } = normalizeSafetyAssessment(fallbackRisk, {})
+        const fallbackRisk = isCasualPositiveMessage(trimmed)
+          ? 'low'
+          : inferRiskForChatTurn([{ sender: 'youth', message: trimmed }], trimmed)
+        const { riskLevel: finalRisk, crisisDetected, escalationNeeded } = normalizeSafetyAssessment(
+          fallbackRisk,
+          {},
+        )
         try {
           await client.database.from('ai_messages').insert([
             { session_id: sessionId, youth_id: ctx.youth.id, sender: 'ai', message: reply },

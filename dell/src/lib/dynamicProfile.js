@@ -229,11 +229,27 @@ export function mergeDynamicProfile(existing, generated) {
   return profileDynamicFieldsForDisplay(normalizeDynamicProfile(existing))
 }
 
-export function mergeDynamicProfileForPersist({ savedProfile, generatedProfile, questionnaire = null }) {
+export function mergeDynamicProfileForPersist({
+  savedProfile,
+  generatedProfile,
+  questionnaire = null,
+  messages = [],
+  aiSessions = [],
+  offlineSessions = [],
+} = {}) {
   const generated = regenerateDynamicProfile({ aiGenerated: generatedProfile, questionnaire })
   const saved = profileDynamicFieldsForDisplay(normalizeDynamicProfile(savedProfile))
-  if (!hasDynamicProfileData(generated)) return saved
-  return preserveQualityDynamicProfile(saved, generated)
+  const fallback = buildDynamicProfileFallbackFromContext({
+    questionnaire,
+    existingDynamic: saved,
+    messages,
+    aiSessions,
+    offlineSessions,
+  })
+  if (hasDynamicProfileData(generated)) return preserveQualityDynamicProfile(saved, generated)
+  if (hasDynamicProfileData(fallback)) return preserveQualityDynamicProfile(saved, fallback)
+  if (hasDynamicProfileData(saved)) return saved
+  return saved
 }
 
 export function buildYouthSpeechCorpus({ messages = [], offlineSessions = [] } = {}) {
@@ -250,6 +266,104 @@ export function buildDynamicProfileFromYouthSpeech() {
 
 export function buildDynamicProfileFallback() {
   return profileDynamicFieldsForDisplay({ ...EMPTY_DYNAMIC_PROFILE })
+}
+
+/** Rule-based dynamic profile when OpenRouter is unavailable — mirrors cloud behaviour after AI chat. */
+export function buildDynamicProfileFallbackFromContext(context = {}) {
+  const ctx =
+    context.youthSpeech != null || context.staticProfile != null
+      ? context
+      : collectDynamicProfileContext(context)
+  const corpus = [ctx.youthSpeech, ctx.offlineTranscripts, ...(ctx.sessionSummaries || [])]
+    .filter(Boolean)
+    .join('\n')
+  const questionnaire = context.questionnaire || null
+  const staticInterests = asArray(ctx.staticProfile?.interests || questionnaire?.interests)
+
+  if (!corpus.trim() && !(ctx.moodHistory || []).length) {
+    return buildDynamicProfileFallback()
+  }
+
+  const personality = []
+  const coping_methods = []
+  const interests = []
+  let living_arrangement = ''
+
+  const pushUnique = (target, items, limit = 4) => {
+    const seen = new Set(target.map((item) => String(item).toLowerCase()))
+    for (const item of items) {
+      const tag = String(item || '').trim()
+      const key = tag.toLowerCase()
+      if (!tag || seen.has(key)) continue
+      seen.add(key)
+      target.push(tag)
+      if (target.length >= limit) break
+    }
+  }
+
+  if (/suicide|kill myself|hurt myself|想自杀|self.?harm/i.test(corpus)) {
+    pushUnique(personality, ['Emotionally distressed', 'May need gentle reassurance'])
+    pushUnique(coping_methods, ['Reaching out through after-hours AI chat'])
+  }
+
+  if (
+    /sad|stressed|overwhelmed|难过|压力|崩溃/i.test(corpus) ||
+    (ctx.moodHistory || []).some((m) => /sad|stressed|overwhelmed/i.test(String(m)))
+  ) {
+    pushUnique(personality, ['Carrying low mood', 'May appear withdrawn when overwhelmed'])
+  }
+
+  if (
+    /family|parent|home|爸妈|父母|吵架|conflict/i.test(corpus) ||
+    asArray(questionnaire?.current_challenges).some((c) => /family/i.test(String(c)))
+  ) {
+    living_arrangement = 'Family tension affecting home environment'
+    pushUnique(personality, ['Sensitive to family stress'])
+  }
+
+  if (/school|exam|homework|class|学业|bully|peer/i.test(corpus)) {
+    pushUnique(personality, ['School stress affecting daily mood'])
+  }
+
+  if (/minecraft|mobile game|gaming|game/i.test(corpus)) {
+    pushUnique(interests, ['Mobile gaming as emotional refuge'])
+    pushUnique(coping_methods, ['Immersive gaming for comfort'])
+  } else if (staticInterests.some((item) => /game/i.test(item))) {
+    pushUnique(coping_methods, ['Mobile gaming for relaxation'])
+  }
+
+  if (/piano|guitar|violin|drums|cello|ukulele/i.test(corpus)) {
+    const instrument = /piano/i.test(corpus)
+      ? 'Piano'
+      : /guitar/i.test(corpus)
+        ? 'Guitar'
+        : /violin/i.test(corpus)
+          ? 'Violin'
+          : 'Music'
+    pushUnique(interests, [instrument])
+    pushUnique(coping_methods, ['Music as emotional outlet'])
+  } else if (/music|sing|song/i.test(corpus)) {
+    pushUnique(interests, ['Music'])
+    pushUnique(coping_methods, ['Listening to or playing music for comfort'])
+  }
+
+  if (/bird|leaf|headphone|aquarium|quiet|draw|art/i.test(corpus)) {
+    pushUnique(coping_methods, ['Quiet sensory activities for self-regulation'])
+  }
+
+  if (!personality.length && corpus.trim()) {
+    pushUnique(personality, ['Opening up gradually in after-hours chat'])
+  }
+
+  return dedupeDynamicAgainstStatic(
+    profileDynamicFieldsForDisplay({
+      interests,
+      personality,
+      living_arrangement,
+      coping_methods,
+    }),
+    questionnaire,
+  )
 }
 
 export function filterDynamicProfileByEvidence(profile) {

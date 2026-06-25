@@ -3,21 +3,35 @@ import { hasDynamicProfileData, resolveDynamicProfile } from '../lib/dynamicProf
 import { shouldRewriteOverallSummary } from '../lib/interactionSummary'
 import { mergeLivingInsights } from '../lib/livingMemory'
 import { resolveYouthRiskLevel } from '../lib/riskResolver'
+import { isCasualPositiveMessage } from '../lib/youthChatReply'
 import { normalizeQuestionnaireRow } from './questionnaireService'
+
+function latestYouthMessage(messages = []) {
+  const lines = (messages || [])
+    .filter((m) => m.sender === 'youth')
+    .map((m) => String(m.message || '').trim())
+    .filter(Boolean)
+  return lines[lines.length - 1] || ''
+}
 
 function youthMessages(messages) {
   return (messages || []).filter((m) => m.sender === 'youth').map((m) => String(m.message || '').trim()).filter(Boolean)
 }
 
-function buildDisplayInsights(saved, risk) {
+function buildDisplayInsights(saved, risk, crisisDetected = false) {
   const care = resolveCareInsights({ savedProfile: saved })
   return {
     current_state: care.current_state,
     risk_level: risk,
+    crisis_detected: Boolean(saved?.crisis_detected) || crisisDetected,
     main_risk: care.main_risk,
     best_communication_approach: care.best_communication_approach,
     latest_change: care.latest_change,
   }
+}
+
+function crisisFromSessions(sessions = []) {
+  return (sessions || []).some((session) => Boolean(session.crisis_detected))
 }
 
 export function buildInsightsFromChat({ messages = [], sessions = [], youthName = 'This youth', offlineSessions = [] }) {
@@ -66,10 +80,11 @@ function mergeInsightsForDisplay(saved, messages, sessions, youthName, context =
     offlineSessions: context.offlineSessions,
     messages,
   })
+  const sessionCrisis = crisisFromSessions(sessions)
   const merged = mergeLivingInsights({
     previous: saved || {},
     generated: care,
-    fallback: buildDisplayInsights(saved, risk),
+    fallback: buildDisplayInsights(saved, risk, sessionCrisis),
     context: {
       youthName,
       messages,
@@ -89,7 +104,8 @@ function mergeInsightsForDisplay(saved, messages, sessions, youthName, context =
     ...(saved || {}),
     ...merged,
     risk_level: risk,
-    dynamic_profile,
+    crisis_detected: Boolean(saved?.crisis_detected) || sessionCrisis,
+    dynamic_profile: merged.dynamic_profile,
     last_activity_at,
   }
 }
@@ -110,7 +126,7 @@ export async function loadYouthInsights(db, youthId, youthName) {
       .order('created_at', { ascending: true }),
     db
       .from('ai_chat_sessions')
-      .select('session_date, mood_check_in, ai_summary, risk_level')
+      .select('session_date, mood_check_in, ai_summary, risk_level, crisis_detected')
       .eq('youth_id', youthId)
       .order('session_date', { ascending: false })
       .limit(10),
@@ -164,6 +180,7 @@ export async function loadYouthInsights(db, youthId, youthName) {
       offlineSessions: offlineSessions,
       messages: readableMessages,
     })
+    const sessionCrisis = crisisFromSessions(sessions)
     const dynamic_profile = resolveDynamicProfile({
       savedProfile: saved?.dynamic_profile,
     })
@@ -171,7 +188,7 @@ export async function loadYouthInsights(db, youthId, youthName) {
     const merged = mergeLivingInsights({
       previous: saved || {},
       generated: care,
-      fallback: buildDisplayInsights(saved, risk),
+      fallback: buildDisplayInsights(saved, risk, sessionCrisis),
       context: {
         youthName,
         messages: [],
@@ -186,10 +203,16 @@ export async function loadYouthInsights(db, youthId, youthName) {
           ...saved,
           ...merged,
           risk_level: risk,
-          dynamic_profile,
+          crisis_detected: Boolean(saved?.crisis_detected) || sessionCrisis,
+          dynamic_profile: merged.dynamic_profile,
           last_activity_at: computeLastActivityAt({ saved, messages: [], offlineSessions }),
         }
-      : { dynamic_profile, ...merged }
+      : {
+          ...merged,
+          risk_level: risk,
+          crisis_detected: sessionCrisis,
+          dynamic_profile: merged.dynamic_profile,
+        }
     return {
       insights,
       source: 'database',

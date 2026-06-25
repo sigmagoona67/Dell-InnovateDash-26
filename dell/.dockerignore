@@ -13,8 +13,7 @@ agent-transcripts
 terminals
 mcps
 scripts
-migrations
-functions
+# migrations + functions required by Dockerfile.backend (AI edge handlers)
 .insforge
 **/*.png
 **/*.jpg

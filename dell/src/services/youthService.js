@@ -1,10 +1,10 @@
 import { ensureAuthSession } from '../lib/authService'
-import { requireInsforge } from '../lib/insforgeClient'
 import {
   createProfile,
   ensureYouthProfileRecord,
   findProfileByAuthUserId,
   findStaffProfileById,
+  findYouthProfileByUserId,
   resolveDisplayNameFromUser,
   upsertAppProfileAfterAuth,
 } from '../lib/profileService'
@@ -15,6 +15,11 @@ import {
   writeYouthBootstrapCache,
   writeYouthBootstrapMemory,
 } from '../lib/youthBootstrapCache'
+import { readPersistedAuthSession } from '../lib/authPersistence'
+
+function resolveAuthEmail(user) {
+  return user?.email?.trim() || readPersistedAuthSession()?.user?.email?.trim() || null
+}
 
 export async function getCurrentAuthUser() {
   const user = await ensureAuthSession()
@@ -25,8 +30,9 @@ export async function requireYouthUser() {
   const user = await getCurrentAuthUser()
   if (!user) throw new Error('Not authenticated')
 
-  const role = user.profile?.role
-  if (role && role !== 'youth') {
+  const dbProfile = await findProfileByAuthUserId(user.id)
+  const registeredRole = dbProfile?.role || user.profile?.role
+  if (registeredRole && registeredRole !== 'youth') {
     throw new Error('Role mismatch. Please use the Youth Portal.')
   }
 
@@ -40,6 +46,9 @@ export async function ensureAppProfile(user, { forceRole = null } = {}) {
 
   const existing = await findProfileByAuthUserId(user.id)
   if (existing) {
+    if (existing.role && existing.role !== 'youth') {
+      throw new Error('Role mismatch. Please use the Youth Portal.')
+    }
     console.log('[youth-auth] loaded profile:', existing)
     return existing
   }
@@ -65,50 +74,88 @@ export function getYouthDestination(onboardingComplete) {
   return onboardingComplete ? '/youth-chat/portal' : '/youth-chat/onboarding'
 }
 
-export async function bootstrapYouthSession(source = 'unknown', { preferCache = true } = {}) {
-  console.log('[youth-auth] bootstrap start:', source)
+export async function bootstrapYouthSession(
+  source = 'unknown',
+  { preferCache = true, revalidateOnboarding = false, revalidateAssignment = false } = {},
+) {
+  console.log('[youth-auth] bootstrap start:', source, {
+    preferCache,
+    revalidateOnboarding,
+    revalidateAssignment,
+  })
 
-  const insforge = requireInsforge()
   const user = await requireYouthUser()
+  const bypassFullCache = revalidateOnboarding || revalidateAssignment
 
   const memoryCached = readYouthBootstrapMemory(user.id)
-  if (preferCache && memoryCached) {
+  if (preferCache && !bypassFullCache && memoryCached) {
     return memoryCached
   }
 
-  const cached = readYouthBootstrapCache()
-  if (preferCache && cached?.user?.id === user.id) {
-    writeYouthBootstrapMemory(user.id, cached)
-    return cached
+  const diskCached = readYouthBootstrapCache()
+  const cached = memoryCached || (diskCached?.user?.id === user.id ? diskCached : null)
+
+  if (preferCache && !bypassFullCache && diskCached?.user?.id === user.id) {
+    writeYouthBootstrapMemory(user.id, diskCached)
+    return diskCached
+  }
+
+  if (preferCache && revalidateAssignment && cached?.profile?.id) {
+    const freshYouth = await findYouthProfileByUserId(cached.profile.id)
+    if (!freshYouth) {
+      throw new Error('Youth profile is missing. Please refresh and try again.')
+    }
+
+    const { youth: reconciledYouth, onboardingComplete } = await reconcileYouthOnboardingStatus(
+      freshYouth,
+      cached.questionnaire,
+    )
+
+    let assignedStaff = null
+    if (reconciledYouth.assigned_staff_id) {
+      assignedStaff = await findStaffProfileById(reconciledYouth.assigned_staff_id)
+    }
+
+    const result = {
+      ...cached,
+      user,
+      youth: reconciledYouth,
+      onboardingComplete,
+      assignedStaff,
+      destination: getYouthDestination(onboardingComplete),
+    }
+
+    writeYouthBootstrapMemory(user.id, result)
+    writeYouthBootstrapCache(user.id, result)
+    console.log('[youth-auth] assignment refresh:', {
+      youthId: reconciledYouth.id,
+      assignedStaffId: reconciledYouth.assigned_staff_id,
+      hasAssignedStaff: Boolean(assignedStaff),
+    })
+    return result
   }
 
   console.log('[youth-auth] current user id:', user.id)
   console.log('[youth-auth] auth profile role:', user.profile?.role || '(none)')
 
-  if (user.profile?.role !== 'youth') {
-    console.log('[youth-auth] setting auth profile role to youth')
-    const { error: profileError } = await insforge.auth.setProfile({
-      role: 'youth',
-      email: user.email,
-      name: user.profile?.name,
-    })
-    if (profileError) {
-      console.warn('[youth-auth] failed to set auth profile role:', profileError.message)
-    }
-  }
+  const useEntityCache = preferCache && !revalidateOnboarding && !revalidateAssignment
 
-  const profile = await upsertAppProfileAfterAuth({
-    authUserId: user.id,
-    email: user.email,
-    role: 'youth',
-    name: user.profile?.name,
-  })
+  const profile =
+    (useEntityCache && cached?.profile) ||
+    (await upsertAppProfileAfterAuth({
+      authUserId: user.id,
+      email: resolveAuthEmail(user),
+      role: 'youth',
+      name: user.profile?.name || resolveDisplayNameFromUser(user),
+    }))
   console.log('[youth-auth] user role (profiles table):', profile.role)
 
-  const youth = await ensureYouthProfile({
-    profileId: profile.id,
-    preferredName: profile.display_name,
-  })
+  const youth =
+    (useEntityCache && cached?.youth) ||
+    (await ensureYouthProfile({
+      profileId: profile.id,
+      preferredName: profile.display_name,
+    }))
 
   const questionnaire = await getQuestionnaire(youth.id)
   const { youth: reconciledYouth, onboardingComplete } = await reconcileYouthOnboardingStatus(

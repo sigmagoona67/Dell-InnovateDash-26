@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import AssignedYouthCard from '../../components/staff/AssignedYouthCard'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
 import StaffSchedulePanel from '../../components/staff/StaffSchedulePanel'
@@ -54,6 +54,7 @@ function DashboardFilterBar({ activeFilter, onChange, assignedCount, pendingCoun
 
 export default function StaffDashboardHome() {
   const { context } = useStaffSession()
+  const location = useLocation()
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(true)
   const [assigningId, setAssigningId] = useState('')
@@ -62,7 +63,11 @@ export default function StaffDashboardHome() {
   const [activeFilter, setActiveFilter] = useState('all')
 
   const loadDashboard = useCallback(async () => {
-    if (!context?.staffProfile) return
+    if (!context?.staffProfile?.id) {
+      setLoading(false)
+      setErrorMessage('Staff profile is not ready yet. Please refresh the page.')
+      return
+    }
     setLoading(true)
     setErrorMessage('')
     console.log('StaffDashboard: loading dashboard...')
@@ -84,7 +89,7 @@ export default function StaffDashboardHome() {
 
   useEffect(() => {
     loadDashboard()
-  }, [loadDashboard])
+  }, [loadDashboard, location.key])
 
   async function handleAssign(youthId) {
     setAssigningId(youthId)

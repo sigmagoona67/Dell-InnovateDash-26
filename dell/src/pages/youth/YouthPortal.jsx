@@ -40,13 +40,18 @@ export default function YouthPortal() {
   }
 
   useEffect(() => {
+    if (!context?.youth?.id) return
+    refresh({ silent: true, revalidateAssignment: true })
+  }, [context?.youth?.id, refresh])
+
+  useEffect(() => {
     if (activeSection !== 'worker') {
       workerRefreshDone.current = false
       return
     }
     if (workerRefreshDone.current) return
     workerRefreshDone.current = true
-    refresh({ silent: true })
+    refresh({ silent: true, revalidateAssignment: true })
   }, [activeSection, refresh])
 
   useEffect(() => {
@@ -62,7 +67,7 @@ export default function YouthPortal() {
     if (!context?.youth?.id) return undefined
 
     const intervalId = window.setInterval(() => {
-      refresh({ silent: true })
+      refresh({ silent: true, revalidateAssignment: true })
     }, ASSIGNMENT_POLL_MS)
 
     return () => window.clearInterval(intervalId)

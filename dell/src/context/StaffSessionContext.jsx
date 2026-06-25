@@ -40,13 +40,26 @@ function buildInitialStaffState() {
 
 
 
+const BOOTSTRAP_TIMEOUT_MS = 20000
+
+function withBootstrapTimeout(promise) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Staff workspace load timed out. Check that the backend is running, then retry.'))
+      }, BOOTSTRAP_TIMEOUT_MS)
+    }),
+  ])
+}
+
 export function StaffSessionProvider({ children }) {
 
   const [state, setState] = useState(buildInitialStaffState)
 
 
 
-  const refresh = useCallback(async ({ silent = false } = {}) => {
+  const refresh = useCallback(async ({ silent = false, revalidateOnboarding = false } = {}) => {
 
     setState((prev) => {
 
@@ -64,7 +77,12 @@ export function StaffSessionProvider({ children }) {
 
     try {
 
-      const context = await bootstrapStaffSession({ preferCache: silent })
+      const context = await withBootstrapTimeout(
+        bootstrapStaffSession({
+          preferCache: silent,
+          revalidateOnboarding: revalidateOnboarding || !silent,
+        }),
+      )
 
       setState({ loading: false, error: null, setupError: null, context })
 

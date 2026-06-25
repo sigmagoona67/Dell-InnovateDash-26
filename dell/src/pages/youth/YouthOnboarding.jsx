@@ -11,6 +11,14 @@ export default function YouthOnboarding() {
     return <Navigate to="/youth-chat/portal" replace />
   }
 
+  if (!context?.youth?.id) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-white px-6">
+        <p className="text-slate-600">Loading your profile...</p>
+      </div>
+    )
+  }
+
   return (
     <YouthQuestionnaireForm
       questionnaire={context?.questionnaire}
@@ -26,7 +34,7 @@ export default function YouthOnboarding() {
         })
       }
       onSaved={async () => {
-        await refresh()
+        await refresh({ revalidateOnboarding: true })
         navigate('/youth-chat/portal', { replace: true })
       }}
     />

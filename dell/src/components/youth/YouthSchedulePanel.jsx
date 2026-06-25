@@ -23,6 +23,7 @@ import {
   isVisibleConsultationRequest,
   mergeStaffDaySlots,
   mergeYouthFreeDaySlots,
+  normalizeSlotDate,
   respondToConsultationRequest,
   SCHEDULE_TABLES_MISSING_MESSAGE,
   toggleYouthFreeSlot,
@@ -199,7 +200,9 @@ export default function YouthSchedulePanel({ youthId, staffId, workerName }) {
 
   const markedDays = useMemo(() => {
     const workerDays = getMarkedDaysFromSlots(workerSchedule.slots)
-    const freeDays = freeSlots.map((slot) => Number(slot.slot_date.split('-')[2]))
+    const freeDays = freeSlots
+      .map((slot) => Number(normalizeSlotDate(slot.slot_date).split('-')[2]))
+      .filter((day) => Number.isFinite(day))
     const requestDays = getMarkedDaysFromRequests(visibleRequests)
     return [...new Set([...workerDays, ...freeDays, ...requestDays])]
   }, [workerSchedule.slots, freeSlots, visibleRequests])
@@ -277,7 +280,11 @@ export default function YouthSchedulePanel({ youthId, staffId, workerName }) {
       setNotice(`Consultation request sent for ${slot.label}.`)
       setRequestMessage('')
     } catch (error) {
-      setErrorMessage(error.message || 'Unable to send consultation request.')
+      const message = error.message || 'Unable to send consultation request.'
+      if (/already a pending request/i.test(message)) {
+        await loadData({ silent: true })
+      }
+      setErrorMessage(message)
     } finally {
       setBusyHour(null)
     }

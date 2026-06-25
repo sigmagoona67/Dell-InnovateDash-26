@@ -1,0 +1,101 @@
+# CareBridge — Continuous Delivery to Kubernetes (public LoadBalancer URL)
+#
+# Prerequisites (GitHub repo Settings → Secrets):
+#   KUBE_CONFIG_BASE64  — base64-encoded kubeconfig for your cluster (EKS/AKS/GKE/Docker Desktop)
+#   Optional: DATABASE_URL, JWT_SECRET, OPENROUTER_API_KEY for first-time secret bootstrap
+#
+# Triggers after CI succeeds on main/lifei, or manually via workflow_dispatch.
+
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, master, lifei]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag (default: latest)'
+        required: false
+        default: 'latest'
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.head_branch == 'main' ||
+        github.event.workflow_run.head_branch == 'master' ||
+        github.event.workflow_run.head_branch == 'lifei'))
+    permissions:
+      contents: read
+      packages: read
+    env:
+      IMAGE_TAG: ${{ github.event.inputs.image_tag || github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl + kustomize
+        run: |
+          curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+          curl -sLO https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.5.0/kustomize_v5.5.0_linux_amd64.tar.gz
+          tar xzf kustomize_v5.5.0_linux_amd64.tar.gz && sudo mv kustomize /usr/local/bin/
+
+      - name: Configure kubeconfig
+        env:
+          KUBE_CONFIG_BASE64: ${{ secrets.KUBE_CONFIG_BASE64 }}
+        run: |
+          if [ -z "$KUBE_CONFIG_BASE64" ]; then
+            echo "::warning::KUBE_CONFIG_BASE64 secret not set — skipping deploy"
+            exit 0
+          fi
+          mkdir -p ~/.kube
+          echo "$KUBE_CONFIG_BASE64" | base64 -d > ~/.kube/config
+
+      - name: Bootstrap namespace secrets (first deploy)
+        env:
+          KUBE_CONFIG_BASE64: ${{ secrets.KUBE_CONFIG_BASE64 }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -z "$KUBE_CONFIG_BASE64" ]; then exit 0; fi
+          kubectl create namespace carebridge --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic carebridge-backend-secrets \
+            --namespace carebridge \
+            --from-literal=JWT_SECRET="${JWT_SECRET:-change-me-in-production}" \
+            --from-literal=SERVICE_API_KEY="${SERVICE_API_KEY:-carebridge-service-key}" \
+            --from-literal=OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}" \
+            --from-literal=DATABASE_URL="${DATABASE_URL:-postgresql://carebridge:carebridge@carebridge-postgres:5432/carebridge}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy with cloud overlay
+        env:
+          KUBE_CONFIG_BASE64: ${{ secrets.KUBE_CONFIG_BASE64 }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/carebridge-backend:${{ env.IMAGE_TAG }}
+          WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/carebridge-web:${{ env.IMAGE_TAG }}
+        run: |
+          if [ -z "$KUBE_CONFIG_BASE64" ]; then
+            echo "No kubeconfig — CD skipped (configure KUBE_CONFIG_BASE64 to enable)."
+            exit 0
+          fi
+          chmod +x dell/scripts/k8s-cloud-deploy.sh
+          cd dell && ./scripts/k8s-cloud-deploy.sh
+
+      - name: Smoke test gateway health
+        env:
+          KUBE_CONFIG_BASE64: ${{ secrets.KUBE_CONFIG_BASE64 }}
+        run: |
+          if [ -z "$KUBE_CONFIG_BASE64" ]; then exit 0; fi
+          kubectl run curl-health --rm -i --restart=Never -n carebridge \
+            --image=curlimages/curl:8.10.1 -- \
+            curl -sf "http://carebridge-gateway:3001/health" | head -c 500

@@ -7,10 +7,8 @@ import {
 } from '../../lib/reassignmentReasons'
 import { releaseYouthCase } from '../../services/staffService'
 import { closeReassignmentRequest } from '../../services/reassignmentService'
-import ReleaseCaseDialog from './ReleaseCaseDialog'
 
 export default function AssignedYouthCard({ youth, onReleased }) {
-  const [releaseOpen, setReleaseOpen] = useState(false)
   const [releasing, setReleasing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -24,7 +22,6 @@ export default function AssignedYouthCard({ youth, onReleased }) {
       if (reassignment?.id) {
         await closeReassignmentRequest(reassignment.id)
       }
-      setReleaseOpen(false)
       onReleased?.()
     } catch (error) {
       setErrorMessage(error.message || 'Unable to release case.')
@@ -44,7 +41,7 @@ export default function AssignedYouthCard({ youth, onReleased }) {
             <p className="mt-1.5 text-sm leading-snug text-slate-600">
               {getReassignmentReasonLabel(reassignment.reason)}
             </p>
-            {reassignment.reason.startsWith('Other: ') && (
+            {reassignment.reason?.startsWith('Other: ') && (
               <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
                 {formatReassignmentReasonDisplay(reassignment.reason)}
               </p>
@@ -60,21 +57,14 @@ export default function AssignedYouthCard({ youth, onReleased }) {
           <div className="mt-5 pt-1">
             <button
               type="button"
-              onClick={() => setReleaseOpen(true)}
-              className="inline-flex rounded-2xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+              disabled={releasing}
+              onClick={handleReleaseConfirm}
+              className="inline-flex rounded-2xl bg-sky-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-60"
             >
-              Release to Pool
+              {releasing ? 'Saving…' : 'Acknowledged'}
             </button>
           </div>
         </article>
-
-        <ReleaseCaseDialog
-          open={releaseOpen}
-          youthName={youth.name}
-          releasing={releasing}
-          onConfirm={handleReleaseConfirm}
-          onCancel={() => setReleaseOpen(false)}
-        />
       </>
     )
   }

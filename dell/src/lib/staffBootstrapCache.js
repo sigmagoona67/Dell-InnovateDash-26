@@ -21,6 +21,10 @@ export function clearStaffBootstrapMemory() {
   memoryStaffBootstrapUserId = null
 }
 
+export function isValidStaffBootstrapContext(context) {
+  return Boolean(context?.user?.id && context?.staffProfile?.id)
+}
+
 export function readStaffBootstrapCache() {
   if (typeof window === 'undefined') return null
   try {
@@ -33,6 +37,7 @@ export function readStaffBootstrapCache() {
     const parsed = JSON.parse(raw)
     if (parsed.authUserId !== authUserId) return null
     if (Date.now() - parsed.savedAt > MAX_AGE_MS) return null
+    if (!isValidStaffBootstrapContext(parsed.context)) return null
 
     return parsed.context || null
   } catch {

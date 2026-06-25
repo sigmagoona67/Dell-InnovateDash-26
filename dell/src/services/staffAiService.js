@@ -47,9 +47,9 @@ export function buildMockOfflineSummary(transcript, previousInsights = {}, youth
 }
 
 export async function regenerateYouthProfileInsights(youthId, payload = {}) {
-  const { data, error } = await requireInsforge().functions.invoke('staff-ai-assist', {
+  const { data, error } = await requireInsforge().functions.invoke('youth-ai-chat', {
     body: {
-      action: 'regenerateYouthInsights',
+      action: 'regenerateProfileInsights',
       youthId,
       summary: payload.summary || '',
       riskLevel: payload.riskLevel || 'low',

@@ -3,6 +3,8 @@ dist
 .env
 .env.local
 .env*.local
+k8s/secret.yaml
+k8s/overlays/aws-eks/kustomization.ecr.yaml
 
 # InsForge & AI agent skills
 .insforge

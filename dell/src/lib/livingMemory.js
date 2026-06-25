@@ -1,6 +1,6 @@
 import { emptyInsightsFallback } from './aiContentStubs.js'
 import { regenerateAtAGlance, collectAtAGlanceContext, hasLockedAtAGlanceQuality } from './atAGlance.js'
-import { regenerateCareInsights } from './careInsights.js'
+import { regenerateCareInsights, buildCareInsightsFallbackFromContext, isCareInsightsQuality, collectCareInsightsContext } from './careInsights.js'
 import { mergeDynamicProfileForPersist } from './dynamicProfile.js'
 
 function pickText(next, previous = '', fallback = '') {
@@ -69,6 +69,9 @@ export function mergeLivingInsights({ previous = {}, generated = {}, fallback = 
     savedProfile: prev.dynamic_profile,
     generatedProfile: gen.dynamic_profile || context.dynamicProfile || base.dynamic_profile,
     questionnaire: context.questionnaire,
+    messages: context.messages,
+    aiSessions: context.aiSessions,
+    offlineSessions: context.offlineSessions,
   })
 
   const atAGlanceContext = collectAtAGlanceContext({
@@ -91,7 +94,7 @@ export function mergeLivingInsights({ previous = {}, generated = {}, fallback = 
           context: atAGlanceContext,
         })
 
-  const careInsights = regenerateCareInsights({
+  let careInsights = regenerateCareInsights({
     aiGenerated: {
       current_state: gen.current_state,
       main_risk: gen.main_risk,
@@ -99,7 +102,30 @@ export function mergeLivingInsights({ previous = {}, generated = {}, fallback = 
       latest_change: gen.latest_change,
     },
     saved: prev,
+    context: {
+      youthName: context.youthName,
+      questionnaire: context.questionnaire,
+      dynamicProfile: context.dynamicProfile || dynamic_profile,
+      messages: context.messages,
+      aiSessions: context.aiSessions,
+      offlineSessions: context.offlineSessions,
+      existingCareInsights: prev,
+    },
   })
+
+  if (!isCareInsightsQuality(careInsights)) {
+    careInsights = buildCareInsightsFallbackFromContext(
+      collectCareInsightsContext({
+        youthName: context.youthName,
+        questionnaire: context.questionnaire,
+        dynamicProfile: context.dynamicProfile || dynamic_profile,
+        existingCareInsights: prev,
+        messages: context.messages,
+        aiSessions: context.aiSessions,
+        offlineSessions: context.offlineSessions,
+      }),
+    )
+  }
 
   return {
     current_state: careInsights.current_state,

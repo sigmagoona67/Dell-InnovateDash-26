@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@insforge/sdk'
+import { createClient } from '../backend/lib/createClient.js'
 
 // Keep in sync with functions/shared/profileBundlePrompts.ts
 const PROFILE_GENERATION_TEMPERATURE = 0.35

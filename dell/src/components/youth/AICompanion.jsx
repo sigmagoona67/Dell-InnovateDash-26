@@ -31,9 +31,12 @@ function ChatBubble({ role, text, showCrisisSupport }) {
 function friendlyYouthError(error, fallback) {
   const detail = String(error?.message || '')
   if (/duplicate key|unique constraint|23505/i.test(detail)) return ''
-  if (/Session expired/i.test(detail)) return detail
+  if (/Session expired|Unauthorized/i.test(detail)) {
+    return 'Session expired. Please log out and sign in again.'
+  }
   if (/took too long/i.test(detail)) return detail
-  if (detail && detail !== '[object Object]') return fallback
+  if (/Only youth accounts/i.test(detail)) return detail
+  if (detail && detail !== '[object Object]' && detail !== 'Request failed') return detail
   return fallback
 }
 

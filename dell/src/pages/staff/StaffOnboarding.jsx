@@ -13,6 +13,14 @@ export default function StaffOnboarding() {
     return <Navigate to="/staff-dashboard" replace />
   }
 
+  if (!context?.staffProfile?.id) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-white px-6">
+        <p className="text-slate-600">Loading staff profile…</p>
+      </div>
+    )
+  }
+
   return (
     <StaffQuestionnaireForm
       questionnaire={context?.questionnaire}
@@ -25,7 +33,7 @@ export default function StaffOnboarding() {
       }
       onSubmit={async (payload) => completeStaffOnboarding(context.staffProfile.id, payload)}
       onSaved={async () => {
-        await refresh()
+        await refresh({ revalidateOnboarding: true })
         navigate('/staff-dashboard', { replace: true })
       }}
     />

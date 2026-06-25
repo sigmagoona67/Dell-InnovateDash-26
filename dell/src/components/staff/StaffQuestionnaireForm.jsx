@@ -84,7 +84,6 @@ export default function StaffQuestionnaireForm({
     const prefilled = staffQuestionnaireToOnboardingAnswers(questionnaire)
     if (prefilled) {
       setAnswers(prefilled)
-      setStep(0)
     }
   }, [questionnaire])
 

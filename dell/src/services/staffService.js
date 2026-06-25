@@ -7,12 +7,17 @@ import {
   formatYouthNameLine,
 } from '../lib/assignedYouthCard'
 import { resolveCurrentConcern, resolveCasePreview } from '../lib/dashboardCard'
+import { resolveMentalHealthConcerns } from '../lib/onboardingData'
 import { findProfileByAuthUserId, createProfile, resolveDisplayNameFromUser, ensureStaffProfileRecord, findStaffProfileRecordByUserId } from '../lib/profileService'
-import { readStaffBootstrapCache, writeStaffBootstrapCache, readStaffBootstrapMemory, writeStaffBootstrapMemory } from '../lib/staffBootstrapCache'
+import { readStaffBootstrapCache, writeStaffBootstrapCache, readStaffBootstrapMemory, writeStaffBootstrapMemory, isValidStaffBootstrapContext } from '../lib/staffBootstrapCache'
 import { getStaffQuestionnaire, reconcileStaffOnboardingStatus } from './staffQuestionnaireService'
 import { resolveYouthRiskLevel } from '../lib/riskResolver'
 import { RISK_ORDER, sortByRisk } from '../lib/staffMockData'
-import { EMPTY_QUESTIONNAIRE, getQuestionnaire } from './questionnaireService'
+import { EMPTY_QUESTIONNAIRE, getQuestionnaire, normalizeQuestionnaireRow } from './questionnaireService'
+import {
+  computeCompatibilityForPair,
+  sortByCompatibility,
+} from './compatibilityService'
 
 import { loadYouthInsights } from './insightsFallbackService'
 import {
@@ -91,6 +96,7 @@ function mapYouthCard(
 
   const currentConcern = resolveCurrentConcern({ insights, questionnaire })
   const casePreview = resolveCasePreview({ insights, sessions, youthName: displayName })
+  const mentalHealthConcerns = resolveMentalHealthConcerns(questionnaire)
 
   const age = youthRow.age ?? questionnaire?.age ?? null
 
@@ -107,6 +113,7 @@ function mapYouthCard(
     hasScheduleRequest,
     scheduleResponse,
     currentConcern,
+    mentalHealthConcerns,
     casePreview,
     currentStateDisplay: formatCurrentStateDisplay(insights),
     latestInteractionInsight: formatLatestInteractionInsight(insights),
@@ -127,8 +134,9 @@ export async function requireStaffUser() {
   const user = await getCurrentAuthUser()
   if (!user) throw new Error('Not authenticated')
 
-  const role = user.profile?.role
-  if (role && role !== 'staff') {
+  const dbProfile = await findProfileByAuthUserId(user.id)
+  const registeredRole = dbProfile?.role || user.profile?.role
+  if (registeredRole && registeredRole !== 'staff') {
     throw new Error('Role mismatch. Please use the Staff Portal.')
   }
 
@@ -141,6 +149,9 @@ export async function ensureStaffProfile(user) {
 
   let profile = await findProfileByAuthUserId(user.id)
   if (profile) {
+    if (profile.role && profile.role !== 'staff') {
+      throw new Error('Role mismatch. Please use the Staff Portal.')
+    }
     await ensureStaffProfileRecord({ profileId: profile.id })
     return profile
   }
@@ -159,26 +170,27 @@ export function getStaffDestination(onboardingComplete) {
   return onboardingComplete ? '/staff-dashboard' : '/staff-dashboard/onboarding'
 }
 
-export async function bootstrapStaffSession({ preferCache = true } = {}) {
-  const insforge = requireInsforge()
+export async function bootstrapStaffSession({ preferCache = true, revalidateOnboarding = false } = {}) {
   const user = await requireStaffUser()
 
   const memoryCached = readStaffBootstrapMemory(user.id)
-  if (preferCache && memoryCached) {
+  if (preferCache && !revalidateOnboarding && isValidStaffBootstrapContext(memoryCached)) {
     return memoryCached
   }
 
-  const cached = readStaffBootstrapCache()
-  if (preferCache && cached?.user?.id === user.id) {
-    writeStaffBootstrapMemory(user.id, cached)
-    return cached
+  const diskCached = readStaffBootstrapCache()
+  const cached =
+    (isValidStaffBootstrapContext(memoryCached) ? memoryCached : null) ||
+    (diskCached?.user?.id === user.id ? diskCached : null)
+
+  if (preferCache && !revalidateOnboarding && isValidStaffBootstrapContext(diskCached)) {
+    writeStaffBootstrapMemory(user.id, diskCached)
+    return diskCached
   }
 
-  if (user.profile?.role !== 'staff') {
-    await insforge.auth.setProfile({ role: 'staff', email: user.email, name: user.profile?.name })
-  }
+  const useEntityCache = preferCache && !revalidateOnboarding
 
-  const staffProfile = await ensureStaffProfile(user)
+  const staffProfile = (useEntityCache && cached?.staffProfile) || (await ensureStaffProfile(user))
   const [staffRecord, questionnaire] = await Promise.all([
     findStaffProfileRecordByUserId(staffProfile.id),
     getStaffQuestionnaire(staffProfile.id),
@@ -233,17 +245,20 @@ async function fetchLastViewed(staffId, youthIds) {
 }
 
 async function upsertStaffYouthViewField(staffId, youthId, field, value) {
-  const existing = await safeOptionalQuery(
-    db()
-      .from('staff_youth_views')
-      .select('staff_id')
-      .eq('staff_id', staffId)
-      .eq('youth_id', youthId)
-      .maybeSingle(),
-    'staff_youth_views',
-  )
+  const { data: existing, error: readError } = await db()
+    .from('staff_youth_views')
+    .select('staff_id')
+    .eq('staff_id', staffId)
+    .eq('youth_id', youthId)
+    .maybeSingle()
 
-  if (existing === null) return
+  if (readError) {
+    if (isMissingTableError(readError)) {
+      console.warn('[staff] staff_youth_views unavailable:', readError.message)
+      return
+    }
+    throw readError
+  }
 
   if (existing) {
     const { error } = await db()
@@ -262,7 +277,7 @@ async function upsertStaffYouthViewField(staffId, youthId, field, value) {
   if (error) throw error
 }
 
-async function buildYouthCards(staffId, youthRows) {
+async function buildYouthCards(staffId, youthRows, staffQuestionnaire = null) {
   if (!youthRows.length) return []
 
   const youthIds = youthRows.map((row) => row.id)
@@ -309,15 +324,14 @@ async function buildYouthCards(staffId, youthRows) {
       db().from('ai_dynamic_insights').select('*').in('youth_id', youthIds),
       'ai_dynamic_insights',
     ),
-    db()
-      .from('ai_messages')
-      .select('youth_id, sender, message, created_at')
-      .in('youth_id', youthIds)
-      .order('created_at', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) throw error
-        return data
-      }),
+    safeOptionalQuery(
+      db()
+        .from('ai_messages')
+        .select('youth_id, sender, message, created_at')
+        .in('youth_id', youthIds)
+        .order('created_at', { ascending: true }),
+      'ai_messages',
+    ),
     fetchLastViewed(staffId, youthIds),
     getConsultationRequestsForStaff(staffId).catch(() => []),
     assignedYouthIds.length > 0
@@ -362,6 +376,7 @@ async function buildYouthCards(staffId, youthRows) {
   }, {})
 
   return youthRows.map((row) => {
+    const normalizedQuestionnaire = normalizeQuestionnaireRow(questionnaireMap[row.id])
     const viewState = lastViewedMap[row.id] || {}
     const pendingReassignment = reassignmentMap?.[row.id]
     const card = mapYouthCard(
@@ -377,6 +392,10 @@ async function buildYouthCards(staffId, youthRows) {
       resolveUnreadStaffMeetingResponse(allRequests, row.id, viewState.schedule),
     )
 
+    if (staffQuestionnaire) {
+      card.compatibility = computeCompatibilityForPair(normalizedQuestionnaire, staffQuestionnaire)
+    }
+
     if (pendingReassignment && shouldShowPendingReassignment(row, pendingReassignment, assignmentStartedByYouth[row.id])) {
       card.pendingReassignment = {
         id: pendingReassignment.id,
@@ -390,7 +409,7 @@ async function buildYouthCards(staffId, youthRows) {
 }
 
 /** Pending youth cards use the same risk/insights logic as assigned cards. */
-export async function loadPendingYouth(staffId) {
+export async function loadPendingYouth(staffId, staffQuestionnaire = null) {
   console.log('Loading pending youth...')
 
   const { data, error } = await db()
@@ -416,7 +435,10 @@ export async function loadPendingYouth(staffId) {
 
   if (staffId && rawRows.length) {
     try {
-      pending = await buildYouthCards(staffId, rawRows)
+      pending = await buildYouthCards(staffId, rawRows, staffQuestionnaire)
+      if (pending.length) {
+        pending = sortByCompatibility(pending)
+      }
     } catch (err) {
       console.error('[staff] pending youth card build failed:', err)
       buildError = err
@@ -446,15 +468,26 @@ export async function loadPendingYouth(staffId) {
 
 export async function getStaffDashboard(existingSession = null) {
   let staffProfile
+  let staffQuestionnaire = null
 
   if (existingSession?.staffProfile) {
     staffProfile = existingSession.staffProfile
+    staffQuestionnaire = existingSession.questionnaire || null
   } else {
     const boot = await bootstrapStaffSession()
     staffProfile = boot.staffProfile
+    staffQuestionnaire = boot.questionnaire || null
   }
 
-  const pendingResult = await loadPendingYouth(staffProfile.id)
+  if (!staffQuestionnaire) {
+    try {
+      staffQuestionnaire = await getStaffQuestionnaire(staffProfile.id)
+    } catch (error) {
+      console.warn('[staff] staff questionnaire load for dashboard failed:', error.message)
+    }
+  }
+
+  const pendingResult = await loadPendingYouth(staffProfile.id, staffQuestionnaire)
 
   const { data: assignedRows, error: assignedError } = await db()
     .from('youth_profiles')
@@ -464,7 +497,7 @@ export async function getStaffDashboard(existingSession = null) {
 
   if (assignedError) throw assignedError
 
-  const assigned = await buildYouthCards(staffProfile.id, assignedRows || [])
+  const assigned = await buildYouthCards(staffProfile.id, assignedRows || [], staffQuestionnaire)
 
   return {
     staff: staffProfile,
@@ -691,6 +724,16 @@ export async function getYouthDetail(youthId) {
 
   const approvedOffline = (offlineSessions || []).filter((s) => s.status === 'approved')
 
+  let compatibility = null
+  if (questionnaire) {
+    try {
+      const staffQuestionnaire = await getStaffQuestionnaire(staffProfile.id)
+      compatibility = computeCompatibilityForPair(questionnaire, staffQuestionnaire)
+    } catch (error) {
+      console.warn('[staff] youth detail compatibility failed:', error?.message || error)
+    }
+  }
+
   return {
     youth: youthRow,
     profile: profileRow,
@@ -716,6 +759,7 @@ export async function getYouthDetail(youthId) {
     isAssigned: youthRow.assigned_staff_id === staffProfile.id,
     isPending: youthRow.assigned_staff_id == null,
     canEdit: youthRow.assigned_staff_id === staffProfile.id,
+    compatibility,
     usingMock: false,
   }
 }

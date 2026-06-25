@@ -61,8 +61,30 @@ function normalizeTime(value) {
   return value.length === 5 ? `${value}:00` : value.slice(0, 8)
 }
 
+/** Normalize API/DB date values to YYYY-MM-DD for slot matching (local calendar day). */
+export function normalizeSlotDate(value) {
+  if (!value) return ''
+  if (value instanceof Date) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+  }
+  const text = String(value).trim()
+  const isoPrefix = text.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (isoPrefix) return isoPrefix[1]
+  const parsed = new Date(text)
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`
+  }
+  return text
+}
+
+function dayFromDateKey(value) {
+  const key = normalizeSlotDate(value)
+  const day = Number(key.split('-')[2])
+  return Number.isFinite(day) ? day : null
+}
+
 function slotKey(slotDate, startTime) {
-  return `${slotDate}|${normalizeTime(startTime)}`
+  return `${normalizeSlotDate(slotDate)}|${normalizeTime(startTime)}`
 }
 
 export async function getStaffScheduleForMonth(staffId, year, month) {
@@ -511,7 +533,7 @@ export function buildPendingRequestMap(requests = []) {
 }
 
 export function consultationSlotKey(slotDate, startTime) {
-  return `${slotDate}|${normalizeTime(startTime).slice(0, 5)}`
+  return `${normalizeSlotDate(slotDate)}|${normalizeTime(startTime).slice(0, 5)}`
 }
 
 /** Pending or accepted requests that occupy a slot for this youth–staff pair. */
@@ -604,21 +626,23 @@ export function getMarkedDaysFromSlots(slots = []) {
   const days = new Set()
   for (const slot of slots) {
     if (slot.status !== 'available') {
-      days.add(Number(slot.slot_date.split('-')[2]))
+      const day = dayFromDateKey(slot.slot_date)
+      if (day) days.add(day)
     }
   }
   return [...days]
 }
 
 export function getMarkedDaysFromNotes(notes = []) {
-  return notes.map((note) => Number(note.note_date.split('-')[2]))
+  return notes.map((note) => dayFromDateKey(note.note_date)).filter(Boolean)
 }
 
 export function getMarkedDaysFromRequests(requests = []) {
   const days = new Set()
   for (const request of requests) {
     if (!isVisibleConsultationRequest(request)) continue
-    days.add(Number(request.slot_date.split('-')[2]))
+    const day = dayFromDateKey(request.slot_date)
+    if (day) days.add(day)
   }
   return [...days]
 }

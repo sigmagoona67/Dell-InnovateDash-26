@@ -1,4 +1,5 @@
 import { requireInsforge } from './insforgeClient'
+import { buildRoleMismatchError } from './roleAuth'
 
 function getDatabase() {
   return requireInsforge().database
@@ -64,6 +65,17 @@ export async function createYouthProfile({ profileId, preferredName }) {
 }
 
 export async function ensureYouthProfileRecord({ profileId, preferredName }) {
+  const { data: appProfile, error: profileError } = await getDatabase()
+    .from('profiles')
+    .select('role')
+    .eq('id', profileId)
+    .maybeSingle()
+
+  if (profileError) throw profileError
+  if (appProfile?.role && appProfile.role !== 'youth') {
+    throw new Error(buildRoleMismatchError(appProfile.role))
+  }
+
   const existing = await findYouthProfileByUserId(profileId)
   const trimmedName = preferredName?.trim() || null
 
@@ -119,15 +131,16 @@ export function resolveDisplayNameFromUser(user, fallback = '') {
 
 export async function upsertAppProfileAfterAuth({ authUserId, email, role, name }) {
   const trimmedName = name?.trim()
-  if (role === 'youth' && !trimmedName) {
-    throw new Error('Name is required.')
-  }
-
-  const displayName = trimmedName || email?.split('@')[0] || (role === 'staff' ? 'Staff' : 'Youth')
+  const emailPrefix = email?.split('@')[0]?.trim()
+  const displayName = trimmedName || emailPrefix || (role === 'staff' ? 'Staff' : 'Youth')
 
   let profile = await findProfileByAuthUserId(authUserId)
 
   if (profile) {
+    if (profile.role && role && profile.role !== role) {
+      throw new Error(buildRoleMismatchError(profile.role))
+    }
+
     const updates = {}
     if (displayName && profile.display_name !== displayName) updates.display_name = displayName
     if (role && profile.role !== role) updates.role = role
@@ -157,14 +170,14 @@ export async function upsertAppProfileAfterAuth({ authUserId, email, role, name 
     console.log('[youth-signup] profiles insert success:', profile)
   }
 
-  if (role === 'youth') {
+  if (role === 'youth' && profile.role === 'youth') {
     await ensureYouthProfileRecord({
       profileId: profile.id,
       preferredName: displayName,
     })
   }
 
-  if (role === 'staff') {
+  if (role === 'staff' && profile.role === 'staff') {
     await ensureStaffProfileRecord({ profileId: profile.id })
   }
 
@@ -194,6 +207,17 @@ export async function createStaffProfileRecord({ profileId }) {
 }
 
 export async function ensureStaffProfileRecord({ profileId }) {
+  const { data: appProfile, error: profileError } = await getDatabase()
+    .from('profiles')
+    .select('role')
+    .eq('id', profileId)
+    .maybeSingle()
+
+  if (profileError) throw profileError
+  if (appProfile?.role && appProfile.role !== 'staff') {
+    throw new Error(buildRoleMismatchError(appProfile.role))
+  }
+
   const existing = await findStaffProfileRecordByUserId(profileId)
   if (existing) return existing
   return createStaffProfileRecord({ profileId })

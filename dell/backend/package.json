@@ -1,0 +1,33 @@
+{
+  "name": "carebridge-backend",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "imports": {
+    "npm:@insforge/sdk": "./lib/createClient.js"
+  },
+  "scripts": {
+    "install:all": "npm install",
+    "db:init": "node scripts/init-db.mjs",
+    "db:patch": "node scripts/apply-schema-patches.mjs",
+    "gateway": "node gateway/server.js",
+    "start:all": "node scripts/start-all.mjs",
+    "stop:all": "node scripts/stop-ports.mjs",
+    "test:integration": "node scripts/integration-test-isolated.mjs",
+    "test:events": "node scripts/test-events.mjs",
+    "test:e2e": "node scripts/e2e-test.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.5",
+    "ioredis": "^5.6.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
+    "pg": "^8.16.0",
+    "prom-client": "^15.1.3",
+    "tsx": "^4.19.4"
+  }
+}

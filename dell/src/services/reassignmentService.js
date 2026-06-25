@@ -33,11 +33,11 @@ export function parseReassignmentError(error) {
   if (!error) return 'Unable to notify your youth worker.'
 
   if (isMissingTableError(error)) {
-    return 'Reassignment is not set up on the backend yet. Run scripts/APPLY-REASSIGNMENT.sql in InsForge SQL Editor, then try again.'
+    return 'Reassignment is not set up on the backend yet. Contact your administrator.'
   }
 
   if (isRlsError(error)) {
-    return 'Database permissions blocked this action. Run scripts/APPLY-REASSIGNMENT.sql in InsForge SQL Editor, then try again.'
+    return 'Database permissions blocked this action. Please try again.'
   }
 
   return error.message || 'Unable to notify your youth worker.'
@@ -180,12 +180,12 @@ export async function closePendingReassignmentForYouth(youthId) {
 
 export function shouldShowPendingReassignment(youthRow, request, assignmentStartedAt) {
   if (!request || !youthRow) return false
+  if (!youthRow.assigned_staff_id) return false
   if (request.assigned_staff_id !== youthRow.assigned_staff_id) return false
 
   const requestedAt = new Date(request.created_at || 0).getTime()
   const youthUpdated = new Date(youthRow.updated_at || 0).getTime()
 
-  // Release / reclaim / re-assign bumps youth_profiles.updated_at — hide stale notices first.
   if (youthUpdated > requestedAt) return false
 
   if (assignmentStartedAt) {

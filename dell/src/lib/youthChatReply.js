@@ -86,9 +86,52 @@ Feeling irritated and sad at the same time makes sense after a day like this. Wh
 Is there anything in particular that has been bothering you, or something that could make you feel a bit better tonight?`
 }
 
+export function normalizeYouthCasualText(message = '') {
+  return String(message || '')
+    .trim()
+    .replace(/^ilike\b/i, 'i like')
+    .replace(/^ilove\b/i, 'i love')
+    .replace(/^ienjoy\b/i, 'i enjoy')
+}
+
+export function isCasualPositiveMessage(message = '') {
+  const raw = String(message || '').trim()
+  if (!raw || raw.length > 120) return false
+  if (/^i'm feeling (good|okay|sad|stressed|overwhelmed) today\.?$/i.test(raw)) return false
+  if (
+    /想自杀|自杀|自伤|hurt myself|suicide|kill myself|abuse|bully|hit me|打|骂|欺负|only .+ make(s)? me feel/i.test(
+      raw,
+    )
+  ) {
+    return false
+  }
+  const text = normalizeYouthCasualText(raw)
+  return (
+    /\b(i'?m\s+)?(really\s+)?(into|like|love|enjoy|prefer)\b/i.test(text) ||
+    /^我很喜欢|我喜欢|我超喜欢|我爱/.test(raw)
+  )
+}
+
+export function buildCasualPositiveFallback(message) {
+  const raw = String(message || '').trim()
+  const text = normalizeYouthCasualText(raw)
+  const heard = snippetReflect(text, 12)
+  if (/[\u4e00-\u9fff]/.test(raw)) {
+    return `谢谢你愿意跟我分享这个，听起来「${heard}」对你来说是一件很温暖的小事。 • 把这些让你开心的小事记下来，心情不好时可以翻看 • 如果愿意，可以多说说你喜欢它的哪一点 • 享受这些小快乐是没问题的，不用觉得不好意思。你今天还想多聊聊吗？`
+  }
+  if (/piano|guitar|violin|drums|music|sing/i.test(text)) {
+    return `I'm glad you mentioned music — it sounds like ${heard} matters to you. • Playing or listening can be a real way to settle when the day feels heavy • You could notice what you enjoy most: the sound, the rhythm, or how it feels in your hands • Small creative rituals like this are worth keeping. What do you like most about it?`
+  }
+  if (/cookie|snack|food|eat|pizza|cake/i.test(text)) {
+    return `I'm glad you shared that — it sounds like ${heard} is a small comfort that feels good to you. • Enjoying simple treats is completely okay, especially on harder days • You could notice what you like about it — taste, warmth, or a familiar ritual • Little pleasures like this can be gentle anchors. What is your favourite part about it?`
+  }
+  return `I'm glad you shared that — it sounds like ${heard} is something that brings you a little comfort or joy. • Small likes such as food, hobbies, or routines can be real anchors on harder days • If you want, tell me what you enjoy most about it — taste, smell, memory, or ritual • It's completely okay to lean on simple things that feel good. What is it about that you like best?`
+}
+
 export function buildQuickFallbackReply(message) {
   const text = String(message || '').trim()
   const isChinese = /[\u4e00-\u9fff]/.test(text)
+  const moodMatch = text.match(/^i'm feeling (good|okay|sad|stressed|overwhelmed) today\.?$/i)
 
   if (/想自杀|自杀|不想活|自伤|hurt myself|suicide|kill myself/i.test(text)) {
     if (isChinese) {
@@ -103,6 +146,15 @@ export function buildQuickFallbackReply(message) {
 
   if (needsRichYouthReply(text)) {
     return buildRichEnglishEmotionalFallback(text)
+  }
+
+  if (moodMatch) {
+    const moodKey = moodMatch[1].charAt(0).toUpperCase() + moodMatch[1].slice(1).toLowerCase()
+    if (MOOD_REPLIES[moodKey]) return MOOD_REPLIES[moodKey]
+  }
+
+  if (isCasualPositiveMessage(text)) {
+    return buildCasualPositiveFallback(text)
   }
 
   return MOOD_REPLY_SAD

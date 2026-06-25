@@ -6,11 +6,11 @@ import {
   parseAuthError,
   signUpWithRole,
 } from '../lib/authService'
-import { insforge, insforgeConfigHint, isInsforgeConfigured } from '../lib/insforgeClient'
+import { getApiClient } from '../lib/insforgeClient'
 
 const MIN_PASSWORD_LENGTH = 8
 
-export default function AuthCard({ role, accent, loginDestination }) {
+export default function AuthCard({ role, accent, loginDestination, allowSignUp = true, signUpLink }) {
   const [isLogin, setIsLogin] = useState(true)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -93,22 +93,18 @@ export default function AuthCard({ role, accent, loginDestination }) {
       return
     }
 
-    if (!isInsforgeConfigured || !insforge) {
-      setErrorMessage('Missing environment variables: VITE_INSFORGE_URL and VITE_INSFORGE_ANON_KEY.')
-      return
-    }
-
     setLoading(true)
 
     try {
-      if (isLogin) {
-        await loginWithRole(insforge, { email, password, role })
+      const client = getApiClient()
+      if (isLogin || !allowSignUp) {
+        await loginWithRole(client, { email, password, role })
         setSuccessMessage('Login successful. Redirecting...')
         navigate(returnTo, { replace: true })
         return
       }
 
-      const result = await signUpWithRole(insforge, { email, password, role, name: name.trim() })
+      const result = await signUpWithRole(client, { email, password, role, name: name.trim() })
 
       if (result.kind === 'session') {
         setSuccessMessage('Account created successfully. Redirecting...')
@@ -153,13 +149,15 @@ export default function AuthCard({ role, accent, loginDestination }) {
         >
           Login
         </button>
-        <button
-          type="button"
-          className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${!isLogin ? theme.toggleActive : theme.toggleIdle}`}
-          onClick={() => toggleMode(false)}
-        >
-          Sign Up
-        </button>
+        {allowSignUp && (
+          <button
+            type="button"
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${!isLogin ? theme.toggleActive : theme.toggleIdle}`}
+            onClick={() => toggleMode(false)}
+          >
+            Sign Up
+          </button>
+        )}
       </div>
 
       {errorMessage && (
@@ -175,7 +173,7 @@ export default function AuthCard({ role, accent, loginDestination }) {
       )}
 
       <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-        {!isLogin && (
+        {!isLogin && allowSignUp && (
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-slate-700">Name</span>
             <input
@@ -216,7 +214,7 @@ export default function AuthCard({ role, accent, loginDestination }) {
           />
         </label>
 
-        {!isLogin && (
+        {!isLogin && allowSignUp && (
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-slate-700">Confirm Password</span>
             <input
@@ -236,17 +234,31 @@ export default function AuthCard({ role, accent, loginDestination }) {
           disabled={loading}
           className={`w-full rounded-2xl px-6 py-3.5 text-base font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${theme.button}`}
         >
-          {loading ? 'Signing in...' : isLogin ? `Login as ${role}` : `Create ${role} account`}
+          {loading
+            ? isLogin
+              ? 'Signing in...'
+              : 'Creating account...'
+            : isLogin
+              ? `Login as ${role}`
+              : `Create ${role} account`}
         </button>
       </form>
+
+      {signUpLink && isLogin && (
+        <p className="mt-4 text-sm text-slate-500">
+          Not an existing staff?{' '}
+          <Link
+            to={signUpLink}
+            className="cursor-pointer font-medium text-sky-600 underline-offset-2 transition hover:underline"
+          >
+            Sign up here
+          </Link>
+        </p>
+      )}
 
       <p className="mt-4 text-sm text-slate-500">
         By continuing, you agree to use this platform responsibly in partnership with your care team.
       </p>
-
-      {!isInsforgeConfigured && (
-        <p className="mt-3 text-xs text-slate-500">{insforgeConfigHint}</p>
-      )}
 
       <div className="mt-5 text-sm">
         <Link

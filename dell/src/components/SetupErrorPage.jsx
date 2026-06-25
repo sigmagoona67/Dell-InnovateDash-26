@@ -28,8 +28,7 @@ export default function SetupErrorPage({ classified, onRetry }) {
 
         {isEnv && (
           <pre className="mt-4 overflow-x-auto rounded-2xl bg-slate-50 p-4 text-xs text-slate-700">
-{`VITE_INSFORGE_URL=https://your-project.insforge.app
-VITE_INSFORGE_ANON_KEY=your_anon_key`}
+{`VITE_API_URL=http://localhost:3001`}
           </pre>
         )}
 

@@ -1,4 +1,4 @@
-import { insforgeConfigHint, isInsforgeConfigured } from './insforgeClient'
+import { apiConfigHint, isApiConfigured } from './insforgeClient'
 
 export const SETUP_ERROR = {
   ENV: 'env',
@@ -17,13 +17,12 @@ function errorText(error) {
 }
 
 export function classifySetupError(error) {
-  if (!isInsforgeConfigured) {
+  if (!isApiConfigured) {
     return {
       type: SETUP_ERROR.ENV,
-      title: 'InsForge environment not configured',
-      message: insforgeConfigHint,
-      details:
-        'Add VITE_INSFORGE_URL and VITE_INSFORGE_ANON_KEY to .env.local, then restart npm run dev.',
+      title: 'API not configured',
+      message: apiConfigHint,
+      details: 'Set VITE_API_URL (default http://localhost:3001) in .env.local or runtime config.js.',
     }
   }
 
@@ -50,7 +49,6 @@ export function classifySetupError(error) {
     text.includes('relation') ||
     text.includes('does not exist') ||
     text.includes('42p01') ||
-    text.includes('pgrst') ||
     text.includes('profiles') ||
     text.includes('schema cache') ||
     text.includes('could not find the table')
@@ -58,9 +56,9 @@ export function classifySetupError(error) {
     return {
       type: SETUP_ERROR.SCHEMA,
       title: 'Database setup incomplete',
-      message: 'CareBridge database tables or policies are not applied yet.',
+      message: 'CareBridge database tables are not applied yet.',
       details:
-        'Open InsForge → Database → Database Studio → SQL Editor and run the youth schema script first, then the staff schema script from the migrations/ folder.',
+        'Run backend/scripts/init-db.mjs or kubectl apply the carebridge-db-init job, then retry.',
     }
   }
 
@@ -69,13 +67,14 @@ export function classifySetupError(error) {
     text.includes('network') ||
     text.includes('failed to fetch') ||
     text.includes('network_error') ||
-    text.includes('request timeout')
+    text.includes('request timeout') ||
+    text.includes('backend service is unavailable')
   ) {
     return {
       type: SETUP_ERROR.NETWORK,
-      title: 'Cannot reach InsForge',
+      title: 'Cannot reach API',
       message: error?.message || 'The backend could not be reached.',
-      details: 'Check VITE_INSFORGE_URL, your network connection, and that the InsForge project is online.',
+      details: 'Check VITE_API_URL, port-forward the gateway (3001), or run docker compose up.',
     }
   }
 

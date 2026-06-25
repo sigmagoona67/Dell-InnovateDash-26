@@ -1,0 +1,12 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: carebridge-db-init
+  namespace: carebridge
+spec:
+  template:
+    spec:
+      initContainers: []
+      containers:
+        - name: init
+          imagePullPolicy: Always

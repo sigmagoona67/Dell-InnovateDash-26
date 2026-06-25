@@ -72,32 +72,10 @@ export function restoreAuthFromPersistence(client) {
 }
 
 async function postRefresh(client, refreshToken) {
-  const http = client.getHttpClient()
-  const attempts = [
-  { refresh_token: refreshToken },
-    { refreshToken },
-  ]
-
-  let lastError = null
-  for (const body of attempts) {
-    try {
-      const response = await Promise.race([
-        http.post('/api/auth/refresh?client_type=mobile', body, {
-          skipAuthRefresh: true,
-          credentials: 'include',
-        }),
-        new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('refresh timed out')), 10000)
-        }),
-      ])
-      if (response?.accessToken) return response
-    } catch (error) {
-      lastError = error
-    }
-  }
-
-  if (lastError) throw lastError
-  return null
+  client.getHttpClient().setRefreshToken(refreshToken)
+  const { data, error } = await client.auth.refreshSession()
+  if (error) throw error
+  return data
 }
 
 export async function refreshAuthSessionWithToken(client, refreshToken) {
@@ -125,13 +103,14 @@ export async function validateStoredAccessToken(client, accessToken) {
   if (!client || !accessToken) return null
   client.setAccessToken(accessToken)
   try {
-    const response = await Promise.race([
-      client.getHttpClient().get('/api/auth/sessions/current'),
+    const { data, error } = await Promise.race([
+      client.auth.getCurrentUser(),
       new Promise((_, reject) => {
         setTimeout(() => reject(new Error('session validate timed out')), 15000)
       }),
     ])
-    return response?.user || null
+    if (error) return null
+    return data?.user || null
   } catch {
     return null
   }

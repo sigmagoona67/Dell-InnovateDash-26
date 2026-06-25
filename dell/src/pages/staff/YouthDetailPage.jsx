@@ -9,6 +9,7 @@ import StaffSidebar from '../../components/staff/StaffSidebar'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
 import { useStaffSession } from '../../context/StaffSessionContext'
 import { resolveCurrentConcern, resolveCasePreview } from '../../lib/dashboardCard'
+import { resolveMentalHealthConcerns } from '../../lib/onboardingData'
 import { resolveYouthRiskLevel } from '../../lib/riskResolver'
 import {
   assignYouthToMe,
@@ -200,11 +201,13 @@ export default function YouthDetailPage() {
                     insights: detail.insights,
                     questionnaire: detail.questionnaire,
                   }),
+                  mentalHealthConcerns: resolveMentalHealthConcerns(detail.questionnaire),
                   casePreview: resolveCasePreview({
                     insights: detail.insights,
                     sessions: detail.aiSessions,
                     youthName: detail.name,
                   }),
+                  compatibility: detail.compatibility,
                 }}
                 onAssign={handleAssign}
                 assigning={assigning}

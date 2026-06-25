@@ -37,11 +37,7 @@ async function writeInsights(youthId, row, existing) {
     return data
   }
 
-  const { data, error } = await db()
-    .from('ai_dynamic_insights')
-    .insert([row])
-    .select('*')
-    .single()
+  const { data, error } = await db().from('ai_dynamic_insights').insert([row]).select('*').single()
 
   if (error) throw error
   return data

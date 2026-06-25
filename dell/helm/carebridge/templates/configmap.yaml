@@ -1,0 +1,12 @@
+{{- if .Values.database.url }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: carebridge-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  VITE_API_URL: {{ .Values.web.apiUrl | quote }}
+  REDIS_URL: {{ .Values.redis.url | quote }}
+  DATABASE_URL: {{ .Values.database.url | quote }}
+  OPENROUTER_CHAT_MODEL: "openai/gpt-4o"
+{{- end }}

@@ -1,4 +1,5 @@
 import { upsertAppProfileAfterAuth } from './profileService'
+import { STAFF_ACCESS_CODE } from './staffAccessConfig'
 import { requireInsforge } from './insforgeClient'
 import {
   applyAuthSessionToClient,
@@ -43,7 +44,7 @@ export function persistAuthSessionFromSignIn(data) {
 }
 
 export const INSFORGE_DISABLE_VERIFICATION_HINT =
-  'For demo sign-in, disable email verification in InsForge Authentication settings, or run: npx @insforge/cli config apply --auto-approve'
+  'Email verification is disabled on the CareBridge API — you can sign in immediately after signup.'
 
 function isVerificationBlocked(error) {
   if (!error) return false
@@ -167,18 +168,6 @@ function userFrom(result) {
   return result?.data?.user ?? null
 }
 
-function isTransientAuthError(error) {
-  if (!error) return false
-  const text = String(error.message || error.code || '').toLowerCase()
-  return (
-    text.includes('fetch failed') ||
-    text.includes('failed to fetch') ||
-    text.includes('network') ||
-    text.includes('timeout') ||
-    text.includes('timed out')
-  )
-}
-
 async function restoreAuthSession(client) {
   const persisted = readPersistedAuthSession() || primeAuthClientFromPersistence(client)
   if (!persisted) return null
@@ -275,6 +264,15 @@ export async function ensureAuthSession(insforge) {
   const persisted = readPersistedAuthSession()
   if (persisted?.accessToken && persisted?.user) {
     applyAuthSessionToClient(client, persisted)
+    if (!persisted.user.email) {
+      const fresh = await validateStoredAccessToken(client, persisted.accessToken)
+      if (fresh?.email) {
+        memoryAuthUser = fresh
+        writePersistedAuthSession({ ...persisted, user: fresh })
+        startBackgroundSessionRestore(client, { ...persisted, user: fresh })
+        return fresh
+      }
+    }
     memoryAuthUser = persisted.user
     startBackgroundSessionRestore(client, persisted)
     return persisted.user
@@ -302,6 +300,7 @@ export async function ensureAuthSession(insforge) {
 export async function loginWithRole(insforge, { email, password, role }) {
   memoryAuthUser = null
   restorePromise = null
+  clearStaffBootstrapCache()
 
   const { data, error } = await withTimeout(
     insforge.auth.signInWithPassword({ email, password }),
@@ -338,7 +337,13 @@ export async function signUpWithRole(insforge, { email, password, role, name }) 
     throw new Error('Name is required.')
   }
 
-  const { data, error } = await insforge.auth.signUp({ email, password })
+  clearAuthSessionState(insforge)
+
+  const { data, error } = await withTimeout(
+    insforge.auth.signUp({ email, password }),
+    25000,
+    'Sign up',
+  )
   if (error) throw error
 
   if (data?.accessToken && data?.user?.id) {
@@ -353,7 +358,11 @@ export async function signUpWithRole(insforge, { email, password, role, name }) 
     return { kind: 'session', data }
   }
 
-  const signInAttempt = await insforge.auth.signInWithPassword({ email, password })
+  const signInAttempt = await withTimeout(
+    insforge.auth.signInWithPassword({ email, password }),
+    25000,
+    'Sign in',
+  )
   if (!signInAttempt.error && signInAttempt.data?.user) {
     await saveUserProfile(insforge, { role, email, name: trimmedName })
     await upsertAppProfileAfterAuth({
@@ -380,6 +389,28 @@ export async function signUpWithRole(insforge, { email, password, role, name }) 
   }
 
   return { kind: 'created' }
+}
+
+export async function signUpStaff(insforge, { fullName, email, password, accessCode }) {
+  const trimmedName = fullName?.trim()
+  if (!trimmedName) {
+    throw new Error('Full name is required.')
+  }
+
+  if (!email?.trim() || !password) {
+    throw new Error('Email and password are required.')
+  }
+
+  if (accessCode !== STAFF_ACCESS_CODE) {
+    throw new Error('Invalid staff access code.')
+  }
+
+  return signUpWithRole(insforge, {
+    email: email.trim(),
+    password,
+    role: 'staff',
+    name: trimmedName,
+  })
 }
 
 export function getVerificationGuidance(error) {

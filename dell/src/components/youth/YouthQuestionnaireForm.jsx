@@ -86,7 +86,6 @@ export default function YouthQuestionnaireForm({
     const prefilled = youthQuestionnaireToOnboardingAnswers(questionnaire)
     if (prefilled) {
       setAnswers(prefilled)
-      setStep(0)
     }
   }, [questionnaire])
 

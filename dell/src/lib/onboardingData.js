@@ -144,6 +144,23 @@ export const CHALLENGE_CATEGORIES = [
   },
 ]
 
+export const MENTAL_HEALTH_CHALLENGE_ITEMS =
+  CHALLENGE_CATEGORIES.find((category) => category.label === 'Mental Health')?.items || []
+
+/** Youth-selected options from the Mental Health segment of the challenges step. */
+export function resolveMentalHealthConcerns(questionnaire) {
+  const selected = Array.isArray(questionnaire?.current_challenges)
+    ? questionnaire.current_challenges.filter(Boolean).map(String)
+    : []
+  if (!selected.length) return []
+
+  const mentalHealthKeys = new Set(
+    MENTAL_HEALTH_CHALLENGE_ITEMS.map((item) => item.trim().toLowerCase()),
+  )
+
+  return selected.filter((item) => mentalHealthKeys.has(item.trim().toLowerCase()))
+}
+
 /** Normalize DB/API date values to YYYY-MM-DD for forms and age calculation. */
 export function normalizeIsoDate(value) {
   if (value == null || value === '') return ''

@@ -1,0 +1,1303 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-gateway
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3001"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: gateway
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "gateway/server.js"]
+          ports:
+            - name: http
+              containerPort: 3001
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: AUTH_SERVICE_HOST
+              value: carebridge-auth
+            - name: PROFILE_SERVICE_HOST
+              value: carebridge-profile
+            - name: ONBOARDING_SERVICE_HOST
+              value: carebridge-onboarding
+            - name: CASE_SERVICE_HOST
+              value: carebridge-case
+            - name: REASSIGNMENT_SERVICE_HOST
+              value: carebridge-reassignment
+            - name: TEAM_SERVICE_HOST
+              value: carebridge-team
+            - name: AI_CHAT_SERVICE_HOST
+              value: carebridge-ai-chat
+            - name: AI_INSIGHTS_SERVICE_HOST
+              value: carebridge-ai-insights
+            - name: OFFLINE_SERVICE_HOST
+              value: carebridge-offline
+            - name: OFFLINE_SUMMARY_SERVICE_HOST
+              value: carebridge-offline-summary
+            - name: SCHEDULING_SERVICE_HOST
+              value: carebridge-scheduling
+            - name: STAFF_EDIT_SERVICE_HOST
+              value: carebridge-staff-edit
+            - name: STORAGE_SERVICE_HOST
+              value: carebridge-storage
+            - name: NOTIFICATION_SERVICE_HOST
+              value: carebridge-notification
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-gateway
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: gateway
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: gateway
+  ports:
+    - name: http
+      port: 3001
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-auth
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: auth
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: auth
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3002"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: auth
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/auth/server.js"]
+          ports:
+            - name: http
+              containerPort: 3002
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-auth
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: auth
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: auth
+  ports:
+    - name: http
+      port: 3002
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-profile
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: profile
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: profile
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: profile
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3003"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: profile
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/profile/server.js"]
+          ports:
+            - name: http
+              containerPort: 3003
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-profile
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: profile
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: profile
+  ports:
+    - name: http
+      port: 3003
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-onboarding
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: onboarding
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: onboarding
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: onboarding
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3004"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: onboarding
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/onboarding/server.js"]
+          ports:
+            - name: http
+              containerPort: 3004
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-onboarding
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: onboarding
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: onboarding
+  ports:
+    - name: http
+      port: 3004
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-case
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: case
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: case
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: case
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3005"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: case
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/case/server.js"]
+          ports:
+            - name: http
+              containerPort: 3005
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-case
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: case
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: case
+  ports:
+    - name: http
+      port: 3005
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-reassignment
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: reassignment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: reassignment
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: reassignment
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3006"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: reassignment
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/reassignment/server.js"]
+          ports:
+            - name: http
+              containerPort: 3006
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-reassignment
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: reassignment
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: reassignment
+  ports:
+    - name: http
+      port: 3006
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-team
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: team
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: team
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: team
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3007"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: team
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/team/server.js"]
+          ports:
+            - name: http
+              containerPort: 3007
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-team
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: team
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: team
+  ports:
+    - name: http
+      port: 3007
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-ai-chat
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: ai-chat
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: ai-chat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: ai-chat
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3008"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: ai-chat
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/ai-chat/server.js"]
+          ports:
+            - name: http
+              containerPort: 3008
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-ai-chat
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: ai-chat
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: ai-chat
+  ports:
+    - name: http
+      port: 3008
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-ai-insights
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: ai-insights
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: ai-insights
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: ai-insights
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3009"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: ai-insights
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/ai-insights/server.js"]
+          ports:
+            - name: http
+              containerPort: 3009
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-ai-insights
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: ai-insights
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: ai-insights
+  ports:
+    - name: http
+      port: 3009
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-offline
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: offline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: offline
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: offline
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3010"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: offline
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/offline/server.js"]
+          ports:
+            - name: http
+              containerPort: 3010
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-offline
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: offline
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: offline
+  ports:
+    - name: http
+      port: 3010
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-offline-summary
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: offline-summary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: offline-summary
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: offline-summary
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3011"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: offline-summary
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/offline-summary/server.js"]
+          ports:
+            - name: http
+              containerPort: 3011
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-offline-summary
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: offline-summary
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: offline-summary
+  ports:
+    - name: http
+      port: 3011
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-scheduling
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: scheduling
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: scheduling
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: scheduling
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3012"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: scheduling
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/scheduling/server.js"]
+          ports:
+            - name: http
+              containerPort: 3012
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-scheduling
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: scheduling
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: scheduling
+  ports:
+    - name: http
+      port: 3012
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-staff-edit
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: staff-edit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: staff-edit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: staff-edit
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3013"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: staff-edit
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/staff-edit/server.js"]
+          ports:
+            - name: http
+              containerPort: 3013
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-staff-edit
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: staff-edit
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: staff-edit
+  ports:
+    - name: http
+      port: 3013
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-storage
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: storage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: storage
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: storage
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3014"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: storage
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/storage/server.js"]
+          ports:
+            - name: http
+              containerPort: 3014
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-storage
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: storage
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: storage
+  ports:
+    - name: http
+      port: 3014
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carebridge-notification
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: notification
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carebridge
+      app.kubernetes.io/component: notification
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: carebridge
+        app.kubernetes.io/component: notification
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3015"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: notification
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "services/notification/server.js"]
+          ports:
+            - name: http
+              containerPort: 3015
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: carebridge-config
+                  key: REDIS_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 8
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-notification
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: notification
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: notification
+  ports:
+    - name: http
+      port: 3015
+      targetPort: http
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: carebridge-gateway
+  namespace: carebridge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: carebridge-gateway
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: carebridge-ai-chat
+  namespace: carebridge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: carebridge-ai-chat
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: carebridge-ai-insights
+  namespace: carebridge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: carebridge-ai-insights
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---

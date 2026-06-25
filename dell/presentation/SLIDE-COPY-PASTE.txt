@@ -1,0 +1,126 @@
+================================================================================
+CAREBRIDGE — COPY EACH BLOCK INTO ONE SLIDE (Google Slides / PowerPoint)
+================================================================================
+
+--- SLIDE 1 (Title) ---
+
+CareBridge AI
+
+Youth mental-health support with a cloud-native backend
+
+Team: [Your team name]
+Course: Cloud Native Architecture
+
+
+--- SLIDE 2 (What we built) ---
+
+What we built
+
+Problem
+• Youth need after-hours AI support; staff need insights and case tools
+
+Solution
+• Web app (Youth + Staff portals)
+• 14 microservices behind one API Gateway
+• AI companion via OpenRouter (GPT)
+
+[Optional image: landing page screenshot]
+
+
+--- SLIDE 3 (Architecture overview) ---
+
+Architecture overview
+
+• Frontend: React SPA (containerized)
+• API Gateway: single entry — auth, routing, health
+• 14 microservices: auth, case, ai-chat, notification, …
+• Data: PostgreSQL · Events: Redis Streams
+
+[Image: architecture diagram from ARCHITECTURE.md]
+
+
+--- SLIDE 4 (Modern patterns 1/2) ---
+
+Modern patterns (1/2)
+
+Microservices
+• One service per domain — scale AI separately from CRUD
+• Gateway aggregates /health for all 14 services
+
+Event-driven
+• Case writes → Redis Streams → notification service (async)
+• Example events: youth assigned, crisis detected
+
+[Image: http://localhost:3016/health  OR  backend/services/ folder]
+
+
+--- SLIDE 5 (Modern patterns 2/2) ---
+
+Modern patterns (2/2)
+
+Infrastructure as Code (IaC)
+• Kubernetes manifests (k8s/) + Helm chart
+• Terraform: AWS · Azure · GCP
+
+Portability
+• Same Docker images — Docker Compose (local) → Kubernetes (demo/prod)
+• Only secrets & DB URL change per environment
+
+[Image: k8s/ + terraform/ folders  OR  kubectl get deploy -n carebridge]
+
+
+--- SLIDE 6 (Resilience · Scale · Observability) ---
+
+Resilient · Scalable · Observable
+
+Resilience
+• Health checks, circuit breaker, graceful AI fallback
+
+Scalability
+• HPA on web, gateway, ai-chat, ai-insights
+
+Observability
+• /metrics on every service · Prometheus · Grafana
+
+[Image: kubectl get hpa -n carebridge  OR  /health JSON with circuits]
+
+
+--- SLIDE 7 (Why we designed it this way) ---
+
+Why we designed it this way
+
+API Gateway (not service mesh)
+→ Simpler to operate; enough for auth + circuit break
+
+OpenRouter (not self-hosted LLM)
+→ No GPU cluster; pay per use; portable
+
+Monolith-in-container locally, microservices on K8s
+→ Fast dev; real microservice proof for grading
+
+We apply cloud-native patterns where they solve real problems.
+
+
+--- SLIDE 8 (Demo — optional) ---
+
+Demo (30–60 sec)
+
+1. Open /health → 14 services OK
+2. Youth chat → GPT reply (e.g. "ilike piano")
+3. Staff dashboard → profile & care insights update
+
+Local: http://localhost:8888
+API: http://localhost:3016/health
+
+[Image: youth chat + staff insights screenshots]
+
+
+--- SLIDE 9 (Summary) ---
+
+Summary
+
+• Microservices + event-driven + IaC + observability — thoughtfully applied
+• Portable across Docker Compose, Kubernetes, and multi-cloud Terraform
+• Resilient, scalable, secure, cost-aware — with explicit design trade-offs
+
+Thank you — questions?

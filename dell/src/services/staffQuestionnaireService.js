@@ -110,7 +110,7 @@ export async function saveStaffQuestionnaire(staffProfileId, answers) {
 }
 
 export async function completeStaffOnboarding(staffProfileId, answers) {
-  await saveStaffQuestionnaire(staffProfileId, answers)
+  const savedQuestionnaire = await saveStaffQuestionnaire(staffProfileId, answers)
 
   const { data, error } = await db()
     .from('staff_profiles')
@@ -120,7 +120,11 @@ export async function completeStaffOnboarding(staffProfileId, answers) {
     .single()
 
   if (error) throw error
-  return data
+
+  return {
+    staffRecord: data,
+    questionnaire: normalizeStaffQuestionnaireRow(savedQuestionnaire),
+  }
 }
 
 export async function getStaffQuestionnaire(staffProfileId) {

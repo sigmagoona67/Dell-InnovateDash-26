@@ -1,0 +1,12 @@
+apiVersion: v2
+name: carebridge
+description: CareBridge AI — cloud-native microservices (web + API gateway + 14 services)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - cloud-native
+  - microservices
+  - mental-health
+maintainers:
+  - name: CareBridge Team

@@ -46,7 +46,7 @@ function YouthReassignmentNotice({ youthName, reason }) {
       <div className="mt-5">
         <p className="text-sm font-semibold text-slate-900">Reason:</p>
         <p className="mt-1.5 text-sm leading-snug text-slate-600">{getReassignmentReasonLabel(reason)}</p>
-        {reason.startsWith('Other: ') && (
+        {reason?.startsWith('Other: ') && (
           <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
             {formatReassignmentReasonDisplay(reason)}
           </p>
@@ -86,6 +86,10 @@ export default function ReassignmentPanel({
     setErrorMessage('')
     try {
       if (role === 'youth' && youthRow) {
+        if (!youthRow.assigned_staff_id) {
+          setPendingRequest(null)
+          return
+        }
         const request = await getYouthVisibleReassignmentRequest(youthRow, { requestedBy: role })
         setPendingRequest(request)
       } else {
@@ -105,6 +109,12 @@ export default function ReassignmentPanel({
     setConfirmOpen(false)
     loadPending()
   }, [loadPending, assignmentEpoch])
+
+  useEffect(() => {
+    if (!canSubmit) {
+      setPendingRequest(null)
+    }
+  }, [canSubmit, assignmentEpoch])
 
   const reasonReady =
     selectedReason &&
@@ -161,7 +171,7 @@ export default function ReassignmentPanel({
 
       {loading ? (
         <p className="text-slate-500">Loading…</p>
-      ) : pendingRequest ? (
+      ) : pendingRequest && canSubmit ? (
         <YouthReassignmentNotice youthName={youthName} reason={pendingRequest.reason} />
       ) : (
         <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-[0_8px_36px_-14px_rgba(45,90,110,0.12)]">
