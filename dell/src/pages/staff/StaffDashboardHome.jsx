@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import AssignedYouthCard from '../../components/staff/AssignedYouthCard'
 import CaseloadSummary from '../../components/staff/CaseloadSummary'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
+import QuietSignalPanel from '../../components/staff/QuietSignalPanel'
 import StaffNav from '../../components/staff/StaffNav'
 import UrgentAlertsPanel from '../../components/staff/UrgentAlertsPanel'
 import { Card, Skeleton } from '../../components/ui'
@@ -160,6 +161,8 @@ export default function StaffDashboardHome() {
               onAssign={handleAssign}
               assigningId={assigningId}
             />
+
+            <QuietSignalPanel />
 
             <section className="mb-10">
               <h2 className="mb-4 font-display text-[22px] font-semibold text-ink-800">Assigned youth</h2>
