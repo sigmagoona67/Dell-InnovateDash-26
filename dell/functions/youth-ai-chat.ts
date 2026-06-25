@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@insforge/sdk'
+import { computeQuietSignal, isTemplatedYouthMood } from './_shared/quietSignal.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -201,6 +202,72 @@ async function callOpenRouter(messages) {
   throw lastError || new Error('All AI models failed')
 }
 
+// Local-calendar day key 'YYYY-MM-DD' (matches the scorer + session_date).
+function localDayKey(date) {
+  const d = new Date(date)
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+// The Quiet Signal: after a youth message / mood check-in, recompute the
+// deterministic drift score over the last ~14 days and persist it on the
+// current day's session row. Wrapped so a scoring failure NEVER breaks the chat
+// reply — on any error we log and continue.
+async function updateQuietSignal(client, ctx, sessionId) {
+  try {
+    const now = new Date()
+    const windowDays = 14
+    const sinceMs = new Date(now).setHours(0, 0, 0, 0) - (windowDays - 1) * 24 * 60 * 60 * 1000
+    const sinceIso = new Date(sinceMs).toISOString()
+
+    const [messagesRes, sessionsRes] = await Promise.all([
+      client.database
+        .from('ai_messages')
+        .select('sender, message, created_at')
+        .eq('youth_id', ctx.youth.id)
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: true }),
+      client.database
+        .from('ai_chat_sessions')
+        .select('session_date, mood_check_in')
+        .eq('youth_id', ctx.youth.id),
+    ])
+
+    if (messagesRes.error) throw messagesRes.error
+    if (sessionsRes.error) throw sessionsRes.error
+
+    // Exclude templated mood lines + system messages so a silent check-in
+    // (mood logged, nothing written) still registers as "opened, didn't write".
+    const messages = (messagesRes.data || []).filter((m) => !isTemplatedYouthMood(m))
+    const sessions = sessionsRes.data || []
+
+    const result = computeQuietSignal({ messages, sessions }, { now, windowDays })
+
+    const today = localDayKey(now)
+    const update = {
+      drift_score: result.score,
+      drift_tier: result.tier,
+      drift_signals: result.signals,
+      drift_computed_at: now.toISOString(),
+    }
+
+    // Prefer the explicit session we just wrote to; fall back to today's row.
+    let target = sessionId
+      ? client.database.from('ai_chat_sessions').update(update).eq('id', sessionId)
+      : client.database
+          .from('ai_chat_sessions')
+          .update(update)
+          .eq('youth_id', ctx.youth.id)
+          .eq('session_date', today)
+
+    const { error: updateError } = await target
+    if (updateError) throw updateError
+  } catch (error) {
+    console.warn('[quiet-signal] scoring skipped:', error?.message || error)
+  }
+}
+
 export default async function handler(req) {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders })
@@ -231,6 +298,8 @@ export default async function handler(req) {
         { session_id: sessionId, youth_id: ctx.youth.id, sender: 'system', message: `Mood check-in: ${mood}` },
         { session_id: sessionId, youth_id: ctx.youth.id, sender: 'ai', message: reply },
       ])
+
+      await updateQuietSignal(client, ctx, sessionId)
 
       return jsonResponse({ reply, summary: `Youth mood check-in: ${mood}`, riskLevel: mood === 'Overwhelmed' ? 'medium' : 'low' })
     }
@@ -270,6 +339,8 @@ export default async function handler(req) {
         ai_summary: aiResult.summary,
         risk_level: aiResult.riskLevel,
       }).eq('id', sessionId)
+
+      await updateQuietSignal(client, ctx, sessionId)
 
       return jsonResponse(aiResult)
     }

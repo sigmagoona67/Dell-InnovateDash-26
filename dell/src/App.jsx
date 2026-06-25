@@ -5,6 +5,7 @@ import StaffDashboard from './pages/StaffDashboard'
 import StaffAuth from './pages/StaffAuth'
 import YouthAuth from './pages/YouthAuth'
 import YouthChat from './pages/YouthChat'
+import { StaffPreview, QuietSignalPreview, YouthJitaiPreview } from './pages/preview/Previews'
 
 function NotFound() {
   return (
@@ -26,6 +27,9 @@ export default function App() {
       <Route path="/youth-auth" element={<YouthAuth />} />
       <Route path="/staff-dashboard/*" element={<StaffDashboard />} />
       <Route path="/youth-chat/*" element={<YouthChat />} />
+      <Route path="/preview/staff" element={<StaffPreview />} />
+      <Route path="/preview/quiet-signal" element={<QuietSignalPreview />} />
+      <Route path="/preview/jitai" element={<YouthJitaiPreview />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   )
