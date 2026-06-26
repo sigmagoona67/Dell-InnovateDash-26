@@ -3,9 +3,10 @@ import LandingPage from './components/LandingPage'
 import PlaceholderCard from './components/PlaceholderCard'
 import StaffDashboard from './pages/StaffDashboard'
 import StaffAuth from './pages/StaffAuth'
+import StaffSignup from './pages/StaffSignup'
 import YouthAuth from './pages/YouthAuth'
 import YouthChat from './pages/YouthChat'
-import { StaffPreview, QuietSignalPreview, YouthJitaiPreview, MoodHeatmapPreview, MoodYouthPreview, MoodStaffPreview, OfflineUploadPreview } from './pages/preview/Previews'
+import { StaffPreview, QuietSignalPreview, YouthJitaiPreview, MoodHeatmapPreview, MoodYouthPreview, MoodStaffPreview, OfflineUploadPreview, SchedulePreview, StaffSignupPreview } from './pages/preview/Previews'
 
 function NotFound() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/staff-auth" element={<StaffAuth />} />
+      <Route path="/staff-signup" element={<StaffSignup />} />
       <Route path="/youth-auth" element={<YouthAuth />} />
       <Route path="/staff-dashboard/*" element={<StaffDashboard />} />
       <Route path="/youth-chat/*" element={<YouthChat />} />
@@ -34,6 +36,8 @@ export default function App() {
       <Route path="/preview/mood-youth" element={<MoodYouthPreview />} />
       <Route path="/preview/mood-staff" element={<MoodStaffPreview />} />
       <Route path="/preview/offline-upload" element={<OfflineUploadPreview />} />
+      <Route path="/preview/schedule" element={<SchedulePreview />} />
+      <Route path="/preview/staff-signup" element={<StaffSignupPreview />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   )

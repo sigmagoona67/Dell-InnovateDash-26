@@ -7,6 +7,8 @@ import StaffNav from '../../components/staff/StaffNav'
 import UrgentAlertsPanel from '../../components/staff/UrgentAlertsPanel'
 import MicroInterventionCard from '../../components/youth/MicroInterventionCard'
 import MoodHeatmap from '../../components/youth/MoodHeatmap'
+import YouthSchedulePanel from '../../components/youth/YouthSchedulePanel'
+import StaffSignup from '../StaffSignup'
 import { buildMoodYearMock } from '../../lib/moodHeatmap'
 import { FileUp } from 'lucide-react'
 import { Button } from '../../components/ui'
@@ -213,6 +215,37 @@ export function OfflineUploadPreview() {
       </div>
     </StaffFrame>
   )
+}
+
+// Renders the youth Schedule panel without auth. Uses mock youth/staff IDs so
+// the full booking UI mounts; every data call is wrapped, so a missing/
+// unreachable backend surfaces an error banner instead of crashing.
+export function SchedulePreview() {
+  return (
+    <div className="relative min-h-dvh overflow-hidden bg-gradient-to-b from-teal-50 via-white to-sky-50 px-6 py-12">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-24 top-0 h-96 w-96 rounded-full bg-teal-50 blur-3xl" />
+        <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-sky-50 blur-3xl" />
+      </div>
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <p className="mb-4 text-[12px] font-medium uppercase tracking-wide text-teal-600">
+          Youth · Schedule tab (ported from dylan, restyled)
+        </p>
+        <YouthSchedulePanel
+          youthId="00000000-0000-4000-8000-000000000001"
+          staffId="00000000-0000-4000-8000-000000000002"
+          workerName="Aisha"
+        />
+      </div>
+    </div>
+  )
+}
+
+// Renders the access-code-gated staff signup page without auth. The page only
+// touches the backend on submit, and every data call is wrapped, so a missing/
+// unreachable InsForge surfaces an error banner instead of crashing.
+export function StaffSignupPreview() {
+  return <StaffSignup />
 }
 
 export function YouthJitaiPreview() {

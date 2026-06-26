@@ -1,9 +1,10 @@
-import { CalendarDays, MessageCircleHeart, UserRound } from 'lucide-react'
+import { CalendarClock, CalendarDays, MessageCircleHeart, UserRound } from 'lucide-react'
 import { CrisisTrigger } from './CrisisSupport'
 
 const NAV_ITEMS = [
   { id: 'companion', icon: MessageCircleHeart, label: 'AI Companion' },
   { id: 'history', icon: CalendarDays, label: 'Chat History' },
+  { id: 'schedule', icon: CalendarClock, label: 'Schedule' },
   { id: 'worker', icon: UserRound, label: 'Assigned Worker' },
 ]
 

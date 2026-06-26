@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, MessageCircleHeart, UserRound } from 'lucide-react'
+import { CalendarClock, CalendarDays, MessageCircleHeart, UserRound } from 'lucide-react'
 import AICompanion from '../../components/youth/AICompanion'
 import AssignedWorkerPanel from '../../components/youth/AssignedWorkerPanel'
 import ChatHistoryPanel from '../../components/youth/ChatHistoryPanel'
+import YouthSchedulePanel from '../../components/youth/YouthSchedulePanel'
 import QuietSignalNudge from '../../components/youth/QuietSignalNudge'
 import YouthSidebar from '../../components/youth/YouthSidebar'
 import { useYouthSession } from '../../context/YouthSessionContext'
@@ -49,6 +50,7 @@ export default function YouthPortal() {
           {[
             { id: 'companion', icon: MessageCircleHeart, label: 'Companion' },
             { id: 'history', icon: CalendarDays, label: 'History' },
+            { id: 'schedule', icon: CalendarClock, label: 'Schedule' },
             { id: 'worker', icon: UserRound, label: 'Worker' },
           ].map((item) => {
             const Icon = item.icon
@@ -76,6 +78,13 @@ export default function YouthPortal() {
             <ChatHistoryPanel
               youthId={context.youth.id}
               onTalkNow={() => setActiveSection('companion')}
+            />
+          )}
+          {activeSection === 'schedule' && (
+            <YouthSchedulePanel
+              youthId={context.youth.id}
+              staffId={context.youth.assigned_staff_id}
+              workerName={workerView?.name || context.assignedStaff?.display_name || 'Youth Worker'}
             />
           )}
           {activeSection === 'worker' && <AssignedWorkerPanel workerView={workerView} />}

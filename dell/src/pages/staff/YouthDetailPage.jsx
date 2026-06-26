@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import CaseTimelineTab from '../../components/staff/CaseTimelineTab'
 import CharacteristicsTab from '../../components/staff/CharacteristicsTab'
 import OfflineSessionTab from '../../components/staff/OfflineSessionTab'
+import YouthScheduleTab from '../../components/staff/YouthScheduleTab'
 import StaffSidebar from '../../components/staff/StaffSidebar'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
 import { AlertTriangle, UserMinus } from 'lucide-react'
@@ -112,6 +113,7 @@ export default function YouthDetailPage() {
           {[
             { id: 'characteristics', label: 'Profile' },
             { id: 'timeline', label: 'Timeline' },
+            { id: 'schedule', label: 'Schedule' },
             { id: 'offline', label: 'Offline' },
           ].map((item) => (
             <button
@@ -165,6 +167,14 @@ export default function YouthDetailPage() {
 
           {activeTab === 'characteristics' && <CharacteristicsTab detail={detail} />}
           {activeTab === 'timeline' && <CaseTimelineTab detail={detail} />}
+          {activeTab === 'schedule' && (
+            <YouthScheduleTab
+              youthId={detail.id}
+              youthName={detail.name}
+              staffId={context?.staffProfile?.id}
+              onUpdated={loadDetail}
+            />
+          )}
           {activeTab === 'offline' && <OfflineSessionTab detail={detail} onUpdated={loadDetail} />}
         </main>
       </div>

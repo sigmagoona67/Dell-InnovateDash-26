@@ -1,8 +1,9 @@
-import { Puzzle, CalendarDays, NotebookPen, ArrowLeft } from 'lucide-react'
+import { Puzzle, CalendarDays, CalendarClock, NotebookPen, ArrowLeft } from 'lucide-react'
 
 const TABS = [
   { id: 'characteristics', Icon: Puzzle, label: 'Characteristics' },
   { id: 'timeline', Icon: CalendarDays, label: 'Case Timeline' },
+  { id: 'schedule', Icon: CalendarClock, label: 'Schedule' },
   { id: 'offline', Icon: NotebookPen, label: 'Offline Session Update' },
 ]
 
