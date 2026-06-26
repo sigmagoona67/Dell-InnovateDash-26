@@ -371,6 +371,47 @@ export async function getStaffDashboard() {
   }
 }
 
+// Release a youth back to the unassigned pool. Reuses assigned_staff_id /
+// assignment_status (no new table); only the assigned worker may release.
+// History and AI insights are preserved. (Ported/adapted from lifei.)
+export async function releaseYouth(youthId) {
+  const { staffProfile } = await bootstrapStaffSession()
+
+  const { data: existing, error: readError } = await db()
+    .from('youth_profiles')
+    .select('id, assigned_staff_id')
+    .eq('id', youthId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!existing) throw new Error('Youth not found.')
+  if (existing.assigned_staff_id !== staffProfile.id) {
+    throw new Error('Only the assigned worker can release this youth.')
+  }
+
+  const { error } = await db()
+    .from('youth_profiles')
+    .update({ assigned_staff_id: null, assignment_status: 'pending' })
+    .eq('id', youthId)
+    .eq('assigned_staff_id', staffProfile.id)
+  if (error) throw error
+
+  // Best-effort: deactivate the active worker link.
+  try {
+    await db()
+      .from('assigned_workers')
+      .update({ status: 'released' })
+      .eq('youth_id', youthId)
+      .eq('staff_id', staffProfile.id)
+      .eq('status', 'active')
+  } catch (workerError) {
+    if (!isMissingTableError(workerError)) {
+      console.warn('[staff] release worker link skipped:', workerError.message)
+    }
+  }
+
+  return { released: true }
+}
+
 export async function assignYouthToMe(youthId) {
   const { staffProfile } = await bootstrapStaffSession()
 

@@ -5,9 +5,10 @@ import CharacteristicsTab from '../../components/staff/CharacteristicsTab'
 import OfflineSessionTab from '../../components/staff/OfflineSessionTab'
 import StaffSidebar from '../../components/staff/StaffSidebar'
 import PendingYouthCard from '../../components/staff/PendingYouthCard'
-import { Skeleton } from '../../components/ui'
+import { AlertTriangle, UserMinus } from 'lucide-react'
+import { Button, Skeleton } from '../../components/ui'
 import { useStaffSession } from '../../context/StaffSessionContext'
-import { assignYouthToMe, getYouthDetail } from '../../services/staffService'
+import { assignYouthToMe, getYouthDetail, releaseYouth } from '../../services/staffService'
 
 export default function YouthDetailPage() {
   const { youthId } = useParams()
@@ -17,6 +18,8 @@ export default function YouthDetailPage() {
   const [activeTab, setActiveTab] = useState('characteristics')
   const [loading, setLoading] = useState(true)
   const [assigning, setAssigning] = useState(false)
+  const [releaseOpen, setReleaseOpen] = useState(false)
+  const [releasing, setReleasing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
   const loadDetail = useCallback(async () => {
@@ -45,6 +48,20 @@ export default function YouthDetailPage() {
       setErrorMessage(error.message || 'Unable to assign youth.')
     } finally {
       setAssigning(false)
+    }
+  }
+
+  async function handleRelease() {
+    setReleasing(true)
+    setErrorMessage('')
+    try {
+      await releaseYouth(youthId)
+      navigate('/staff-dashboard', { replace: true })
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to release this youth.')
+      setReleaseOpen(false)
+    } finally {
+      setReleasing(false)
     }
   }
 
@@ -111,6 +128,15 @@ export default function YouthDetailPage() {
         </div>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          {detail.isAssigned && (
+            <div className="mb-4 flex justify-end">
+              <Button variant="secondary" accent="sky" size="sm" onClick={() => setReleaseOpen(true)}>
+                <UserMinus className="h-4 w-4" aria-hidden="true" />
+                Release case
+              </Button>
+            </div>
+          )}
+
           {detail.isPending && (
             <div className="mb-6">
               <PendingYouthCard
@@ -142,6 +168,46 @@ export default function YouthDetailPage() {
           {activeTab === 'offline' && <OfflineSessionTab detail={detail} onUpdated={loadDetail} />}
         </main>
       </div>
+
+      {releaseOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/30 p-4"
+          onClick={() => !releasing && setReleaseOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="release-title"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-panel bg-white p-6 shadow-float sm:p-8"
+          >
+            <div className="flex items-start gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-card bg-warning-100 text-warning-500"
+              >
+                <AlertTriangle className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 id="release-title" className="font-display text-[20px] font-semibold leading-tight text-ink-800">
+                  Release {detail.name} from your caseload?
+                </h2>
+                <p className="mt-1 text-[14px] leading-relaxed text-slate-600">
+                  They’ll return to the unassigned pool so another worker can pick them up. Their history and AI insights are kept.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="ghost" accent="sky" onClick={() => setReleaseOpen(false)} disabled={releasing}>
+                Cancel
+              </Button>
+              <Button accent="sky" loading={releasing} onClick={handleRelease}>
+                Release case
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
