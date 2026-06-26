@@ -1,0 +1,54 @@
+# CareBridge Helm values — override per environment (EKS / AKS / GKE)
+
+global:
+  namespace: carebridge
+
+images:
+  web: carebridge-ai:local
+  backend: carebridge-backend:local
+  pullPolicy: IfNotPresent
+
+web:
+  replicas: 2
+  apiUrl: http://localhost:3001
+
+gateway:
+  replicas: 2
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCpu: 70
+
+aiChat:
+  replicas: 2
+  hpa:
+    enabled: true
+    maxReplicas: 8
+
+aiInsights:
+  replicas: 2
+  hpa:
+    enabled: true
+    maxReplicas: 8
+
+database:
+  # Production: set managed DB URL from Terraform output
+  url: postgresql://carebridge:carebridge@carebridge-postgres:5432/carebridge
+  useStatefulSet: true
+
+redis:
+  enabled: true
+  url: redis://carebridge-redis:6379
+
+secrets:
+  jwtSecret: change-me-in-production
+  serviceApiKey: carebridge-service-key
+  openrouterApiKey: ""
+
+monitoring:
+  prometheus:
+    enabled: true
+
+networkPolicy:
+  enabled: true

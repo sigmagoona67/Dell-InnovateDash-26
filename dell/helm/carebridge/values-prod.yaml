@@ -1,0 +1,27 @@
+images:
+  web: ghcr.io/YOUR_ORG/carebridge-ai:1.0.0
+  backend: ghcr.io/YOUR_ORG/carebridge-backend:1.0.0
+  pullPolicy: Always
+
+web:
+  apiUrl: https://api.your-domain.example
+
+database:
+  url: postgresql://carebridge:PASSWORD@your-rds-endpoint:5432/carebridge
+  useStatefulSet: false
+
+secrets:
+  jwtSecret: ""  # set via --set-file or external secrets operator
+  openrouterApiKey: ""
+
+gateway:
+  hpa:
+    enabled: true
+    maxReplicas: 12
+
+monitoring:
+  prometheus:
+    enabled: true
+
+networkPolicy:
+  enabled: true

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: web

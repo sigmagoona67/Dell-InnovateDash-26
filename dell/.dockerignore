@@ -1,0 +1,19 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.env.local
+.env*.local
+.insforge
+.cursor
+*.md
+!README.md
+agent-transcripts
+terminals
+mcps
+scripts
+# migrations + functions required by Dockerfile.backend (AI edge handlers)
+.insforge
+**/*.png
+**/*.jpg

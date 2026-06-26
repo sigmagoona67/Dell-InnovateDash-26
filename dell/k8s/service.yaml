@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: carebridge-web
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: web
+spec:
+  # LoadBalancer works on Docker Desktop (maps to localhost).
+  # On EKS/AKS/GKE this provisions a cloud load balancer.
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

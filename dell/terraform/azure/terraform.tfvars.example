@@ -1,0 +1,4 @@
+resource_group_name = "carebridge-rg"
+location            = "southeastasia"
+cluster_name        = "carebridge"
+db_password         = "CHANGE_ME_STRONG_PASSWORD"

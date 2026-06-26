@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: carebridge
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - redis.yaml
+  - microservices.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa-web.yaml
+  - network-policy.yaml
+  - db-init-job.yaml
+  - monitoring/prometheus.yaml
+  - monitoring/grafana.yaml
+  - monitoring/loki.yaml
+  - monitoring/promtail.yaml
+  - monitoring/jaeger.yaml
+
+# After copying secret.yaml.example → secret.yaml, uncomment:
+# resources:
+#   - secret.yaml
+
+# commonLabels removed — they were injected into Service selectors and broke
+# carebridge-web endpoint matching after the deployment selector became immutable.

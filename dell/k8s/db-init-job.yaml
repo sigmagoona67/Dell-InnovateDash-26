@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: carebridge-db-init
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+    app.kubernetes.io/component: db-init
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h carebridge-postgres -U carebridge; do
+                echo waiting for postgres...
+                sleep 3
+              done
+      containers:
+        - name: init
+          image: carebridge-backend:local
+          imagePullPolicy: IfNotPresent
+          command: ['node', 'scripts/init-db.mjs']
+          envFrom:
+            - secretRef:
+                name: carebridge-backend-secrets
+            - configMapRef:
+                name: carebridge-config

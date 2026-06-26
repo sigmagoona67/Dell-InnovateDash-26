@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: carebridge-config
+  namespace: carebridge
+  labels:
+    app.kubernetes.io/name: carebridge
+data:
+  # Browser-facing API URL (LoadBalancer / Ingress / port-forward)
+  VITE_API_URL: "http://localhost:3001"
+  # Redis Streams event bus
+  REDIS_URL: "redis://carebridge-redis:6379"
+  # In-cluster Postgres (use managed DB URL in production — see terraform/)
+  DATABASE_URL: "postgresql://carebridge:carebridge@carebridge-postgres:5432/carebridge"
+  OPENROUTER_CHAT_MODEL: "openai/gpt-4o"
+  JWT_EXPIRES_IN: "7d"
+  EVENT_STREAM_KEY: "carebridge:events"
+  CIRCUIT_BREAKER_THRESHOLD: "5"
+  CIRCUIT_BREAKER_COOLDOWN_MS: "30000"
