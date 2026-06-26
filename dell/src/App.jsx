@@ -5,7 +5,7 @@ import StaffDashboard from './pages/StaffDashboard'
 import StaffAuth from './pages/StaffAuth'
 import YouthAuth from './pages/YouthAuth'
 import YouthChat from './pages/YouthChat'
-import { StaffPreview, QuietSignalPreview, YouthJitaiPreview, MoodHeatmapPreview, MoodYouthPreview, MoodStaffPreview } from './pages/preview/Previews'
+import { StaffPreview, QuietSignalPreview, YouthJitaiPreview, MoodHeatmapPreview, MoodYouthPreview, MoodStaffPreview, OfflineUploadPreview } from './pages/preview/Previews'
 
 function NotFound() {
   return (
@@ -33,6 +33,7 @@ export default function App() {
       <Route path="/preview/mood" element={<MoodHeatmapPreview />} />
       <Route path="/preview/mood-youth" element={<MoodYouthPreview />} />
       <Route path="/preview/mood-staff" element={<MoodStaffPreview />} />
+      <Route path="/preview/offline-upload" element={<OfflineUploadPreview />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   )

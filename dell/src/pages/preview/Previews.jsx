@@ -8,6 +8,8 @@ import UrgentAlertsPanel from '../../components/staff/UrgentAlertsPanel'
 import MicroInterventionCard from '../../components/youth/MicroInterventionCard'
 import MoodHeatmap from '../../components/youth/MoodHeatmap'
 import { buildMoodYearMock } from '../../lib/moodHeatmap'
+import { FileUp } from 'lucide-react'
+import { Button } from '../../components/ui'
 
 const MOCK_ALERTS = [
   {
@@ -173,6 +175,43 @@ export function MoodStaffPreview() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Mirrors the ported .docx-upload affordance now in OfflineSessionTab.
+export function OfflineUploadPreview() {
+  return (
+    <StaffFrame>
+      <p className="mb-3 text-[12px] font-medium uppercase tracking-wide text-sky-600">
+        Staff · Offline Session Update (ported from lifei, restyled)
+      </p>
+      <div className="max-w-2xl">
+        <h2 className="text-2xl font-bold text-slate-800">Offline Session Update</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Upload offline counselling records and let AI combine them with existing case understanding
+        </p>
+        <section className="mt-5 rounded-card border border-slate-200 bg-white p-5 shadow-card">
+          <div className="mb-4 inline-flex rounded-control bg-slate-100 p-1">
+            <span className="rounded-control bg-white px-4 py-2 text-[13px] font-semibold text-sky-600 shadow-card">
+              Upload document
+            </span>
+            <span className="rounded-control px-4 py-2 text-[13px] font-semibold text-slate-500">
+              Paste transcript
+            </span>
+          </div>
+          <div className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-sky-200 bg-sky-50/50 p-8 text-center">
+            <FileUp className="h-7 w-7 text-sky-500" aria-hidden="true" />
+            <span className="text-[15px] font-semibold text-ink-800">Upload a counselling document</span>
+            <span className="max-w-sm text-[13px] text-slate-500">
+              Drop a <span className="font-medium">.docx</span> or <span className="font-medium">.txt</span> file, or click to browse — we’ll pull out the text for the AI to summarise.
+            </span>
+          </div>
+          <div className="mt-4">
+            <Button accent="sky">Generate AI summary</Button>
+          </div>
+        </section>
+      </div>
+    </StaffFrame>
   )
 }
 

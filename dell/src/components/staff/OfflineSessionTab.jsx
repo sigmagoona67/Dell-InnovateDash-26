@@ -3,17 +3,21 @@ import { useStaffSession } from '../../context/StaffSessionContext'
 import { approveSession, createDraftSession, deleteDraftSession, updateDraftSession } from '../../services/offlineSessionService'
 import { upsertInsights } from '../../services/staffInsightsService'
 import { buildMockOfflineSummary, generateOfflineSummary } from '../../services/staffAiService'
+import { FileUp } from 'lucide-react'
 import { Button, RiskBadge } from '../ui'
+import { extractTextFromFile, OFFLINE_DOCUMENT_ACCEPT } from '../../lib/documentParser'
 
 export default function OfflineSessionTab({ detail, onUpdated }) {
   const { context } = useStaffSession()
-  const [mode, setMode] = useState('transcript')
+  const [mode, setMode] = useState('upload')
   const [transcript, setTranscript] = useState('')
   const [draft, setDraft] = useState(null)
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [extracting, setExtracting] = useState(false)
+  const [fileName, setFileName] = useState('')
 
   const canManage = detail.isAssigned
 
@@ -67,6 +71,26 @@ export default function OfflineSessionTab({ detail, onUpdated }) {
       setErrorMessage(error.message || 'Unable to generate summary.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleFile(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setExtracting(true)
+    setErrorMessage('')
+    setSuccessMessage('')
+    try {
+      const text = await extractTextFromFile(file)
+      setTranscript(text)
+      setFileName(file.name)
+      setMode('transcript')
+      setSuccessMessage(`Loaded “${file.name}” — review the text below, then generate the summary.`)
+    } catch (error) {
+      setErrorMessage(error.message || 'Could not read that file.')
+    } finally {
+      setExtracting(false)
+      event.target.value = ''
     }
   }
 
@@ -160,39 +184,51 @@ export default function OfflineSessionTab({ detail, onUpdated }) {
       )}
 
       {!draft && (
-        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="mb-4 inline-flex rounded-2xl bg-slate-50 p-1">
+        <section className="rounded-card border border-slate-200 bg-white p-5 shadow-card">
+          <div className="mb-4 inline-flex rounded-control bg-slate-100 p-1">
             <button
               type="button"
-              onClick={() => setMode('audio')}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold ${mode === 'audio' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500'}`}
+              onClick={() => setMode('upload')}
+              className={`rounded-control px-4 py-2 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500 ${mode === 'upload' ? 'bg-white text-sky-600 shadow-card' : 'text-slate-500'}`}
             >
-              Upload Audio
+              Upload document
             </button>
             <button
               type="button"
               onClick={() => setMode('transcript')}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold ${mode === 'transcript' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500'}`}
+              className={`rounded-control px-4 py-2 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500 ${mode === 'transcript' ? 'bg-white text-sky-600 shadow-card' : 'text-slate-500'}`}
             >
-              Paste Transcript
+              Paste transcript
             </button>
           </div>
 
-          {mode === 'audio' ? (
-            <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 p-8 text-center">
-              <p className="text-sm text-slate-600">
-                Audio upload UI is ready. For this demo, paste a transcript in the next tab to generate an AI summary.
-              </p>
-              <input type="file" accept="audio/*" className="mx-auto mt-4 block text-sm" disabled />
-            </div>
+          {mode === 'upload' ? (
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border border-dashed border-sky-200 bg-sky-50/50 p-8 text-center transition hover:bg-sky-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-sky-500">
+              <FileUp className="h-7 w-7 text-sky-500" aria-hidden="true" />
+              <span className="text-[15px] font-semibold text-ink-800">
+                {extracting ? 'Reading document…' : 'Upload a counselling document'}
+              </span>
+              <span className="max-w-sm text-[13px] text-slate-500">
+                Drop a <span className="font-medium">.docx</span> or <span className="font-medium">.txt</span> file, or click to browse — we’ll pull out the text for the AI to summarise.
+              </span>
+              <input
+                type="file"
+                accept={OFFLINE_DOCUMENT_ACCEPT}
+                onChange={handleFile}
+                disabled={extracting}
+                className="sr-only"
+              />
+            </label>
           ) : (
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700">Session transcript</span>
+              <span className="mb-2 block text-[13px] font-medium text-slate-600">
+                Session transcript{fileName ? ` · from ${fileName}` : ''}
+              </span>
               <textarea
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 rows={8}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                className="w-full rounded-control border border-slate-200 px-4 py-3 text-[15px] text-slate-800 outline-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-500"
                 placeholder="Paste offline counselling notes or transcript here…"
               />
             </label>
